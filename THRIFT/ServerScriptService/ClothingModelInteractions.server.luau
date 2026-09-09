@@ -23,12 +23,35 @@ if not rackRoll then
 	rackRoll.Parent = remotes
 end
 
-local PRICE = 100
+local luckUpdate = remotes:FindFirstChild("RollLuckUpdate")
+if not luckUpdate then
+	luckUpdate = Instance.new("RemoteEvent")
+	luckUpdate.Name = "RollLuckUpdate"
+	luckUpdate.Parent = remotes
+end
+
 local random = Random.new()
 local pendingOffers = {}
 local lastUse = {}
+local playerLuck = {}
+local rarityLuck = {
+	Common = 0,
+	Uncommon = 0.1,
+	Rare = 0.25,
+	Epic = 0.5,
+	Grail = 1,
+	Limited = 1.5,
+	Legendary = 2,
+	Mythic = 3,
+	Secret = 5,
+}
 
-local function item(id, name, brand, category, style, rarity, value, visual, unlock)
+luckUpdate.OnServerEvent:Connect(function(player, luck)
+	if type(luck) ~= "number" then return end
+	playerLuck[player] = math.clamp(luck, 0, 20)
+end)
+
+local function item(id, name, brand, category, style, rarity, value, visual, unlock, image)
 	return {
 		Id = id,
 		Name = name,
@@ -39,6 +62,7 @@ local function item(id, name, brand, category, style, rarity, value, visual, unl
 		Value = value,
 		Visual = visual,
 		Unlock = unlock or 0,
+		Image = image,
 	}
 end
 
@@ -61,6 +85,7 @@ local uncommon = {
 	item("rack_zip", "Heavy Zip Hoodie", "Archive", "Top", "Y2K", "Uncommon", 120, "ZIP HOODIE"),
 	item("rack_cargo", "Loose Cargo Pants", "Nox", "Bottom", "Utility", "Uncommon", 135, "CARGO PANTS"),
 	item("rack_work_jacket", "Workwear Jacket", "Field Dept.", "Top", "Workwear", "Uncommon", 165, "WORK JACKET"),
+	item("rack_blue_tshirt", "Blue T-Shirt", "Blue Hour", "Top", "Street", "Uncommon", 95, "BLUE T-SHIRT", nil, "rbxassetid://87365206745199"),
 }
 local rare = {
 	item("rack_varsity", "Vintage Varsity Jacket", "Eastline", "Top", "Archive", "Rare", 420, "VARSITY"),
@@ -78,42 +103,55 @@ local limited = {
 	item("rack_limited_tee", "One-Off Racing Tee", "Rogue Archive", "Top", "Limited", "Limited", 5000, "ONE-OFF TEE", 15),
 }
 
-local spins = {}
+local legendary = {
+	item("mannequin_legendary_jacket", "Museum Varsity Jacket", "Eastline Archive", "Top", "Vintage", "Legendary", 9000, "VARSITY JACKET"),
+}
+local mythic = {
+	item("mannequin_mythic_hoodie", "Rare Atelier Hoodie", "Noir Supply", "Top", "Archive", "Mythic", 18000, "ATELIER HOODIE"),
+}
+local secret = {
+	item("mannequin_secret_piece", "One-of-One Archive Piece", "Blue Hour Atelier", "Top", "Limited", "Secret", 50000, "ONE-OF-ONE PIECE"),
+}
+
+local basketLoot = { Common = common, Uncommon = uncommon }
+local rackLoot = { Common = common, Uncommon = uncommon, Rare = rare, Epic = epic }
+local mannequinLoot = {
+	Rare = rare,
+	Epic = epic,
+	Grail = grail,
+	Limited = limited,
+	Legendary = legendary,
+	Mythic = mythic,
+	Secret = secret,
+}
 
 local function choose(list)
 	return list[random:NextInteger(1, #list)]
 end
 
-local function chooseRackLoot(spin)
-	local roll = random:NextNumber(0, 100)
-	if spin < 5 then
-		if roll <= 62 then return table.clone(choose(common)) end
-		if roll <= 88 then return table.clone(choose(uncommon)) end
-		return table.clone(choose(rare))
-	elseif spin < 10 then
-		if roll <= 52 then return table.clone(choose(common)) end
-		if roll <= 80 then return table.clone(choose(uncommon)) end
-		if roll <= 95 then return table.clone(choose(rare)) end
-		return table.clone(choose(epic))
-	elseif spin < 15 then
-		if roll <= 46 then return table.clone(choose(common)) end
-		if roll <= 74 then return table.clone(choose(uncommon)) end
-		if roll <= 92 then return table.clone(choose(rare)) end
-		return table.clone(choose(grail))
-	else
-		if roll <= 40 then return table.clone(choose(common)) end
-		if roll <= 68 then return table.clone(choose(uncommon)) end
-		if roll <= 87 then return table.clone(choose(rare)) end
-		if roll <= 97 then return table.clone(choose(grail)) end
-		return table.clone(choose(limited))
-	end
+local function chooseRackLoot(player)
+	local roll = random:NextNumber(0, 100) + (playerLuck[player] or 0)
+	if roll <= 55 then return table.clone(choose(rackLoot.Common)) end
+	if roll <= 85 then return table.clone(choose(rackLoot.Uncommon)) end
+	if roll <= 97 then return table.clone(choose(rackLoot.Rare)) end
+	return table.clone(choose(rackLoot.Epic))
 end
 
-local function unlockText(spin)
-	if spin == 5 then return "NEW CLOTHES UNLOCKED: EPIC" end
-	if spin == 10 then return "NEW CLOTHES UNLOCKED: GRAIL" end
-	if spin == 15 then return "NEW CLOTHES UNLOCKED: LIMITED" end
-	return nil
+local function chooseBasketLoot(player)
+	local roll = random:NextNumber(0, 100) + (playerLuck[player] or 0)
+	if roll <= 75 then return table.clone(choose(basketLoot.Common)) end
+	return table.clone(choose(basketLoot.Uncommon))
+end
+
+local function chooseMannequinLoot(player)
+	local roll = random:NextNumber(0, 100) + (playerLuck[player] or 0)
+	if roll <= 35 then return table.clone(choose(mannequinLoot.Rare)) end
+	if roll <= 60 then return table.clone(choose(mannequinLoot.Epic)) end
+	if roll <= 80 then return table.clone(choose(mannequinLoot.Grail)) end
+	if roll <= 90 then return table.clone(choose(mannequinLoot.Limited)) end
+	if roll <= 97 then return table.clone(choose(mannequinLoot.Legendary)) end
+	if roll <= 99 then return table.clone(choose(mannequinLoot.Mythic)) end
+	return table.clone(choose(mannequinLoot.Secret))
 end
 
 local function anchorObject(target)
@@ -178,6 +216,52 @@ local function addPrompt(target, actionText, objectText, callback)
 		anchor.CFrame = geometry:GetPivot()
 	end
 
+	local nameTag = anchor:FindFirstChild("ModelNameTag")
+	if not nameTag then
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "ModelNameTag"
+		billboard.Size = UDim2.fromOffset(220, 42)
+		billboard.StudsOffset = Vector3.new(0, 4, 0)
+		billboard.AlwaysOnTop = true
+		billboard.MaxDistance = 45
+		billboard.Adornee = anchor
+		billboard.Parent = anchor
+
+		local tagFrame = Instance.new("Frame")
+		tagFrame.Name = "TagFrame"
+		tagFrame.Size = UDim2.fromScale(1, 1)
+		tagFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		tagFrame.BackgroundTransparency = 0.05
+		tagFrame.BorderSizePixel = 0
+		tagFrame.Parent = billboard
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 12)
+		corner.Parent = tagFrame
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(15, 48, 78)
+		stroke.Thickness = 3
+		stroke.Parent = tagFrame
+
+		local label = Instance.new("TextLabel")
+		label.Name = "Label"
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(1, -14, 1, 0)
+		label.Position = UDim2.fromOffset(7, 0)
+		label.Font = Enum.Font.GothamBold
+		label.TextColor3 = Color3.fromRGB(15, 48, 78)
+		label.TextSize = 16
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.Parent = tagFrame
+		nameTag = billboard
+	end
+	local tagLabel = nameTag:FindFirstChild("TagFrame") and nameTag.TagFrame:FindFirstChild("Label")
+	if tagLabel and tagLabel:IsA("TextLabel") then
+		tagLabel.Text = objectText
+	end
+
 	local prompt = anchor:FindFirstChildOfClass("ProximityPrompt")
 	if not prompt then
 		prompt = Instance.new("ProximityPrompt")
@@ -193,45 +277,70 @@ local function addPrompt(target, actionText, objectText, callback)
 end
 
 local connected = {}
+local paidModelRolls = {}
+local freeModelRolls = {}
 
 local binNames = { "bin", "Bin", "ClothingBIn", "ClothingBin", "CubeClothingDonationBin" }
+local basketNames = { "koszyk", "Koszyk", "basket", "Basket", "ClothingBasket" }
 local rackNames = { "rack", "Rack", "ClothingRack", "CubeRoundClothingRack", "RoundThriftRack" }
+local mannequinNames = { "manekin", "Manekin", "mannequin", "Mannequin", "ClothingMannequin" }
+
+local function makeOfferId(found, player, now)
+	found.Id = string.format("%s_%d_%d", found.Id, player.UserId, math.floor(now * 1000))
+	return found
+end
+
+local function sendPaidOffer(player, source, price, chooseLoot, ignoreCooldown)
+	local now = os.clock()
+	if not ignoreCooldown and lastUse[player] and now - lastUse[player] < 1 then return end
+	if pendingOffers[player] then return end
+	lastUse[player] = now
+	local found = makeOfferId(table.clone(chooseLoot(player)), player, now)
+	pendingOffers[player] = { Item = found, Price = price, Source = source }
+	rackRoll:FireClient(player, {
+		Type = "Offer",
+		Item = found,
+		Price = price,
+		Source = source,
+	})
+end
 
 local function connectBin(bin)
 	if connected[bin] then return end
 	connected[bin] = true
-	addPrompt(bin, "Search", "Clothing Donation Bin", function(player)
+	freeModelRolls["Clothing Donation Bin"] = function()
+		return choose(binLoot)
+	end
+	addPrompt(bin, "Search (Free)", "Clothing Donation Bin", function(player)
 		local now = os.clock()
 		if lastUse[player] and now - lastUse[player] < 1 then return end
 		lastUse[player] = now
-		local found = table.clone(choose(binLoot))
-		found.Id = string.format("%s_%d_%d", found.Id, player.UserId, math.floor(now * 1000))
-		clothingFound:FireClient(player, { Type = "Found", Item = found })
+		local found = makeOfferId(table.clone(choose(binLoot)), player, now)
+		clothingFound:FireClient(player, { Type = "Found", Item = found, Price = 0, Source = "Clothing Donation Bin" })
 	end)
 	print("[ClothingModels] Bin connected:", bin:GetFullName())
 end
 
-local function connectRack(rack)
-	if connected[rack] then return end
-	connected[rack] = true
-	addPrompt(rack, "Zroluj ubranie ($100)", "Circular Clothing Rack", function(player)
-		local now = os.clock()
-		if lastUse[player] and now - lastUse[player] < 1 then return end
-		if pendingOffers[player] then return end
-		lastUse[player] = now
-		local spin = (spins[player] or 0) + 1
-		local found = chooseRackLoot(spin)
-		found.Id = string.format("%s_%d_%d", found.Id, player.UserId, math.floor(now * 1000))
-		pendingOffers[player] = { Item = found, SpinNumber = spin }
-		rackRoll:FireClient(player, {
-			Type = "Offer",
-			Item = found,
-			Price = PRICE,
-			SpinNumber = spin,
-			UnlockMessage = unlockText(spin),
-		})
+local function connectPaidModel(target, actionText, objectText, price, chooseLoot)
+	if connected[target] then return end
+	connected[target] = true
+	paidModelRolls[objectText] = { Price = price, ChooseLoot = chooseLoot }
+	addPrompt(target, actionText, objectText, function(player)
+		sendPaidOffer(player, objectText, price, chooseLoot)
 	end)
-	print("[ClothingModels] Rack connected:", rack:GetFullName())
+	print("[ClothingModels] Paid model connected:", target:GetFullName(), price)
+end
+
+local function connectBasket(basket)
+	connectPaidModel(basket, "Roll clothing ($100)", "Clothing Basket", 100, chooseBasketLoot)
+end
+
+local function connectRack(rack)
+	connectPaidModel(rack, "Roll clothing ($1,000)", "Clothing Rack", 1000, chooseRackLoot)
+end
+
+local function connectMannequin(mannequin)
+	connectPaidModel(mannequin, "Roll clothing ($10,000)", "Mannequin", 10000, chooseMannequinLoot)
 end
 
 local function tryConnect(object)
@@ -248,6 +357,18 @@ local function tryConnect(object)
 			return
 		end
 	end
+	for _, name in ipairs(basketNames) do
+		if objectName == string.lower(name) then
+			connectBasket(object)
+			return
+		end
+	end
+	for _, name in ipairs(mannequinNames) do
+		if objectName == string.lower(name) then
+			connectMannequin(object)
+			return
+		end
+	end
 end
 
 -- Bind existing models and also models generated later during Play.
@@ -258,25 +379,43 @@ Workspace.DescendantAdded:Connect(function(object)
 	task.defer(tryConnect, object)
 end)
 
-rackRoll.OnServerEvent:Connect(function(player, action)
+rackRoll.OnServerEvent:Connect(function(player, action, source)
+	if action == "AutoRoll" then
+		local roll = paidModelRolls[tostring(source)]
+		if roll then
+			sendPaidOffer(player, tostring(source), roll.Price, roll.ChooseLoot, true)
+			return
+		end
+		local chooseFreeLoot = freeModelRolls[tostring(source)]
+		if chooseFreeLoot then
+			local now = os.clock()
+			if lastUse[player] and now - lastUse[player] < 1 then return end
+			lastUse[player] = now
+			local found = makeOfferId(table.clone(chooseFreeLoot(player)), player, now)
+			clothingFound:FireClient(player, {
+				Type = "Found",
+				Item = found,
+				Price = 0,
+				Source = tostring(source),
+			})
+		end
+		return
+	end
 	if action ~= "Confirm" and action ~= "Cancel" then return end
 	local offer = pendingOffers[player]
 	if not offer then return end
 	pendingOffers[player] = nil
 	if action == "Cancel" then return end
-	spins[player] = offer.SpinNumber
 	clothingFound:FireClient(player, {
 		Type = "Found",
 		Item = offer.Item,
-		Price = PRICE,
-		Source = "RoundRack",
-		SpinNumber = offer.SpinNumber,
-		UnlockMessage = unlockText(offer.SpinNumber),
+		Price = offer.Price,
+		Source = offer.Source,
 	})
 end)
 
 Players.PlayerRemoving:Connect(function(player)
 	pendingOffers[player] = nil
 	lastUse[player] = nil
-	spins[player] = nil
+	playerLuck[player] = nil
 end)

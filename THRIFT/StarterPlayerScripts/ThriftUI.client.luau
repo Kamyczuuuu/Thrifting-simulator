@@ -20,31 +20,34 @@ if existingGui then
 end
 
 local Theme = {
-	Background = Color3.fromRGB(237, 246, 255),
+	Background = Color3.fromRGB(220, 244, 255),
 	Surface = Color3.fromRGB(255, 255, 255),
-	SurfaceLight = Color3.fromRGB(216, 232, 251),
-	Paper = Color3.fromRGB(16, 48, 100),
-	Muted = Color3.fromRGB(91, 119, 161),
-	Lime = Color3.fromRGB(47, 124, 246),
-	LimeDark = Color3.fromRGB(24, 72, 167),
-	Danger = Color3.fromRGB(231, 82, 92),
-	Common = Color3.fromRGB(117, 142, 179),
-	Uncommon = Color3.fromRGB(38, 164, 135),
-	Rare = Color3.fromRGB(47, 124, 246),
-	Grail = Color3.fromRGB(122, 87, 210),
-	Limited = Color3.fromRGB(245, 158, 37),
+	SurfaceLight = Color3.fromRGB(191, 231, 250),
+	Paper = Color3.fromRGB(15, 48, 78),
+	Muted = Color3.fromRGB(82, 119, 145),
+	Lime = Color3.fromRGB(61, 169, 242),
+	LimeDark = Color3.fromRGB(22, 108, 184),
+	Danger = Color3.fromRGB(255, 91, 91),
+	Common = Color3.fromRGB(117, 158, 184),
+	Uncommon = Color3.fromRGB(52, 194, 116),
+	Rare = Color3.fromRGB(61, 157, 242),
+	Grail = Color3.fromRGB(181, 82, 228),
+	Limited = Color3.fromRGB(255, 171, 48),
+	Legendary = Color3.fromRGB(255, 193, 36),
+	Mythic = Color3.fromRGB(255, 91, 91),
+	Secret = Color3.fromRGB(239, 92, 255),
 	White = Color3.fromRGB(255, 255, 255),
 }
 
 local SocialTheme = {
-	Background = Color3.fromRGB(240, 250, 246),
+	Background = Color3.fromRGB(226, 247, 255),
 	Surface = Color3.fromRGB(255, 255, 255),
-	SurfaceLight = Color3.fromRGB(220, 243, 232),
-	Purple = Color3.fromRGB(48, 177, 119),
-	PurpleDark = Color3.fromRGB(27, 125, 82),
-	Pink = Color3.fromRGB(91, 205, 150),
-	Text = Color3.fromRGB(19, 58, 43),
-	Muted = Color3.fromRGB(91, 132, 113),
+	SurfaceLight = Color3.fromRGB(196, 235, 252),
+	Purple = Color3.fromRGB(45, 177, 239),
+	PurpleDark = Color3.fromRGB(17, 125, 190),
+	Pink = Color3.fromRGB(255, 105, 125),
+	Text = Color3.fromRGB(15, 48, 78),
+	Muted = Color3.fromRGB(82, 128, 153),
 }
 
 local InterfaceFont = Font.fromName("Nunito", Enum.FontWeight.ExtraBold, Enum.FontStyle.Normal)
@@ -68,6 +71,7 @@ type ClothingItem = {
 	Rarity: string,
 	Value: number,
 	Visual: string,
+	Image: string?,
 	Limited: string?,
 	State: string,
 }
@@ -78,18 +82,24 @@ type Shipment = {
 }
 
 local inventory: { ClothingItem } = {
-	{ Id = "heavy_blank_tee", Name = "Heavy Blank Tee", Brand = "Basefile", Category = "Top", Style = "Street", Rarity = "Common", Value = 45, Visual = "TEE", State = "Owned" },
-	{ Id = "dead_signal_zip", Name = "Dead Signal Zip Hoodie", Brand = "Last Call", Category = "Top", Style = "Y2K", Rarity = "Uncommon", Value = 240, Visual = "ZIP HOODIE", State = "Owned" },
-	{ Id = "transit_leather", Name = "Transit Leather Jacket", Brand = "Morrow", Category = "Top", Style = "Archive", Rarity = "Grail", Value = 3800, Visual = "LEATHER JACKET", State = "Owned" },
-	{ Id = "washed_straight", Name = "Washed Straight Denim", Brand = "Rivet", Category = "Bottom", Style = "Vintage", Rarity = "Common", Value = 70, Visual = "STRAIGHT DENIM", State = "Owned" },
-	{ Id = "widefade_denim", Name = "Widefade Denim", Brand = "Nox Denim", Category = "Bottom", Style = "Archive", Rarity = "Uncommon", Value = 210, Visual = "WIDE DENIM", State = "Owned" },
-	{ Id = "canvas_90", Name = "Canvas 90", Brand = "Nice", Category = "Shoes", Style = "Skate", Rarity = "Common", Value = 85, Visual = "LOW-TOP", State = "Owned" },
-	{ Id = "fourline_runner", Name = "Fourline Runner", Brand = "Abibas", Category = "Shoes", Style = "Sport", Rarity = "Uncommon", Value = 290, Visual = "RUNNER", State = "Owned" },
-	{ Id = "obsidian_stack", Name = "Obsidian Stack Boots", Brand = "Bick Bowens", Category = "Shoes", Style = "Archive", Rarity = "Grail", Value = 5500, Visual = "STACK BOOT", State = "Owned" },
-	{ Id = "faded_cap", Name = "Faded Logo Cap", Brand = "Kabel 04", Category = "Head", Style = "Street", Rarity = "Common", Value = 55, Visual = "CAP", State = "Owned" },
-	{ Id = "shield_visor", Name = "Shield Visor", Brand = "Suture", Category = "Head", Style = "Y2K", Rarity = "Rare", Value = 650, Visual = "VISOR", State = "Owned" },
-	{ Id = "chrome_link", Name = "Chrome Link Belt", Brand = "Chrome Souls", Category = "Accessory", Style = "Archive", Rarity = "Rare", Value = 900, Visual = "CHAIN BELT", State = "Owned" },
-	{ Id = "moonwire", Name = "Moonwire Glasses", Brand = "Lumen 03", Category = "Accessory", Style = "Y2K", Rarity = "Limited", Value = 12000, Visual = "WIRE GLASSES", Limited = "#042 / 500", State = "Owned" },
+	{ Id = "heavy_blank_tee", Name = "Heavy Blank Tee", Brand = "Basefile", Category = "Top", Style = "Street", Rarity = "Common", Value = 70, Visual = "TEE", State = "Owned" },
+	{ Id = "rack_blue_tshirt", Name = "Blue T-Shirt", Brand = "Blue Hour", Category = "Top", Style = "Street", Rarity = "Uncommon", Value = 180, Visual = "BLUE T-SHIRT", Image = "rbxassetid://87365206745199", State = "Owned" },
+	{ Id = "dead_signal_zip", Name = "Dead Signal Zip Hoodie", Brand = "Last Call", Category = "Top", Style = "Y2K", Rarity = "Uncommon", Value = 420, Visual = "ZIP HOODIE", State = "Owned" },
+	{ Id = "transit_leather", Name = "Transit Leather Jacket", Brand = "Morrow", Category = "Top", Style = "Archive", Rarity = "Grail", Value = 8500, Visual = "LEATHER JACKET", State = "Owned" },
+	{ Id = "washed_straight", Name = "Washed Straight Denim", Brand = "Rivet", Category = "Bottom", Style = "Vintage", Rarity = "Common", Value = 110, Visual = "STRAIGHT DENIM", State = "Owned" },
+	{ Id = "widefade_denim", Name = "Widefade Denim", Brand = "Nox Denim", Category = "Bottom", Style = "Archive", Rarity = "Uncommon", Value = 360, Visual = "WIDE DENIM", State = "Owned" },
+	{ Id = "canvas_90", Name = "Canvas 90", Brand = "Nice", Category = "Shoes", Style = "Skate", Rarity = "Common", Value = 130, Visual = "LOW-TOP", State = "Owned" },
+	{ Id = "fourline_runner", Name = "Fourline Runner", Brand = "Abibas", Category = "Shoes", Style = "Sport", Rarity = "Uncommon", Value = 500, Visual = "RUNNER", State = "Owned" },
+	{ Id = "obsidian_stack", Name = "Obsidian Stack Boots", Brand = "Bick Bowens", Category = "Shoes", Style = "Archive", Rarity = "Grail", Value = 11000, Visual = "STACK BOOT", State = "Owned" },
+	{ Id = "faded_cap", Name = "Faded Logo Cap", Brand = "Kabel 04", Category = "Head", Style = "Street", Rarity = "Common", Value = 90, Visual = "CAP", State = "Owned" },
+	{ Id = "shield_visor", Name = "Shield Visor", Brand = "Suture", Category = "Head", Style = "Y2K", Rarity = "Rare", Value = 1800, Visual = "VISOR", State = "Owned" },
+	{ Id = "chrome_link", Name = "Chrome Link Belt", Brand = "Chrome Souls", Category = "Accessory", Style = "Archive", Rarity = "Rare", Value = 2400, Visual = "CHAIN BELT", State = "Owned" },
+	{ Id = "moonwire", Name = "Moonwire Glasses", Brand = "Lumen 03", Category = "Accessory", Style = "Y2K", Rarity = "Limited", Value = 24000, Visual = "WIRE GLASSES", Limited = "#042 / 500", State = "Owned" },
+	{ Id = "test_secret_top", Name = "Secret Archive Tee", Brand = "Hidden Label", Category = "Top", Style = "Secret", Rarity = "Secret", Value = 100000, Visual = "SECRET TEE", State = "Owned" },
+	{ Id = "test_secret_bottom", Name = "Secret Wide Denim", Brand = "Hidden Label", Category = "Bottom", Style = "Secret", Rarity = "Secret", Value = 110000, Visual = "SECRET DENIM", State = "Owned" },
+	{ Id = "test_secret_shoes", Name = "Secret Archive Boots", Brand = "Hidden Label", Category = "Shoes", Style = "Secret", Rarity = "Secret", Value = 125000, Visual = "SECRET BOOTS", State = "Owned" },
+	{ Id = "test_secret_head", Name = "Secret Collector Cap", Brand = "Hidden Label", Category = "Head", Style = "Secret", Rarity = "Secret", Value = 90000, Visual = "SECRET CAP", State = "Owned" },
+	{ Id = "test_secret_accessory", Name = "Secret Chrome Chain", Brand = "Hidden Label", Category = "Accessory", Style = "Secret", Rarity = "Secret", Value = 150000, Visual = "SECRET CHAIN", State = "Owned" },
 }
 
 local coins = 1240
@@ -102,11 +112,11 @@ local bagLimit = 12
 local currentCategory = "Top"
 local selectedItem: ClothingItem = inventory[1]
 local equipped: { [string]: ClothingItem? } = {
-	Top = inventory[1],
-	Bottom = inventory[4],
-	Shoes = inventory[6],
-	Head = inventory[9],
-	Accessory = nil,
+	Top = inventory[14],
+	Bottom = inventory[15],
+	Shoes = inventory[16],
+	Head = inventory[17],
+	Accessory = inventory[18],
 }
 local shipments: { Shipment } = {}
 local currentPhoneTab = "LISTINGS"
@@ -142,6 +152,24 @@ local cameraReticle: Frame? = nil
 local cameraHud: Frame? = nil
 local cameraShutter: TextButton? = nil
 local cameraCaptionBox: TextBox? = nil
+type RollState = {
+	Active: boolean,
+	Auto: boolean,
+	Source: string?,
+	Price: number,
+	Remote: RemoteEvent?,
+	LuckRemote: RemoteEvent?,
+	LuckLabel: TextLabel?,
+}
+local rollState: RollState = {
+	Active = false,
+	Auto = false,
+	Source = nil,
+	Price = 0,
+	Remote = nil,
+	LuckRemote = nil,
+	LuckLabel = nil,
+}
 local socialPaletteActive = false
 local toastVersion = 0
 local toastQueue: { { message: string, accent: Color3? } } = {}
@@ -169,6 +197,7 @@ local function create(className: string, properties: { [string]: any }?): Instan
 	end
 	if instance:IsA("TextLabel") or instance:IsA("TextButton") or instance:IsA("TextBox") then
 		instance.FontFace = InterfaceFont
+		instance.TextStrokeTransparency = 1
 		if properties and type(properties.TextSize) == "number" then
 			instance.TextSize = properties.TextSize + FontSizeBoost
 		end
@@ -215,6 +244,18 @@ local function rarityColor(item: ClothingItem): Color3
 		return Theme.Limited
 	end
 	return (Theme :: any)[item.Rarity] or Theme.Common
+end
+
+local function rarityLuck(rarity: string): number
+	if rarity == "Uncommon" then return 0.1 end
+	if rarity == "Rare" then return 0.25 end
+	if rarity == "Epic" then return 0.5 end
+	if rarity == "Grail" then return 1 end
+	if rarity == "Limited" then return 1.5 end
+	if rarity == "Legendary" then return 2 end
+	if rarity == "Mythic" then return 3 end
+	if rarity == "Secret" then return 5 end
+	return 0
 end
 
 local function ownedCount(): number
@@ -308,6 +349,19 @@ local cashLabel = create("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Right,
 	Parent = cashChip,
 }) :: TextLabel
+rollState.LuckLabel = create("TextLabel", {
+	BackgroundTransparency = 1,
+	Size = UDim2.fromOffset(190, 24),
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -22, 0, 82),
+	Font = Enum.Font.GothamBlack,
+	Text = "DROP LUCK  +0.0%  1.00x",
+	TextColor3 = Theme.Uncommon,
+	TextSize = 10,
+	TextXAlignment = Enum.TextXAlignment.Right,
+	ZIndex = 12,
+	Parent = hud,
+}) :: TextLabel
 create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 18),
@@ -334,7 +388,7 @@ create("UIListLayout", {
 	Parent = hudButtons,
 })
 
-local function makeButton(parent: Instance, text: string, size: UDim2, accent: boolean?): TextButton
+local function makeButton(parent: Instance, text: string, size: UDim2, accent: boolean?, fixedColor: boolean?): TextButton
 	local accentColor = if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else Theme.Lime
 	local accentTextColor = if currentPhoneApp == "SOCIAL" then SocialTheme.Text else Theme.Background
 	local button = create("TextButton", {
@@ -348,27 +402,29 @@ local function makeButton(parent: Instance, text: string, size: UDim2, accent: b
 		Parent = parent,
 	}) :: TextButton
 	addCorner(button, 12)
-	addStroke(button, if accent then Theme.Lime else Theme.SurfaceLight, 1)
+	addStroke(button, Theme.Paper, 3)
 
-	button.MouseEnter:Connect(function()
-		TweenService:Create(button, TweenInfo.new(0.12), {
-			BackgroundColor3 = if accent
-				then if currentPhoneApp == "SOCIAL" then SocialTheme.PurpleDark else Color3.fromRGB(92, 157, 255)
-				else Theme.SurfaceLight,
-		}):Play()
-	end)
-	button.MouseLeave:Connect(function()
-		TweenService:Create(button, TweenInfo.new(0.12), {
-			BackgroundColor3 = if accent
-				then if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else Theme.Lime
-				else Theme.Surface,
-		}):Play()
-	end)
+	if not fixedColor then
+		button.MouseEnter:Connect(function()
+			TweenService:Create(button, TweenInfo.new(0.12), {
+				BackgroundColor3 = if accent
+					then if currentPhoneApp == "SOCIAL" then SocialTheme.PurpleDark else Color3.fromRGB(92, 157, 255)
+					else Theme.SurfaceLight,
+			}):Play()
+		end)
+		button.MouseLeave:Connect(function()
+			TweenService:Create(button, TweenInfo.new(0.12), {
+				BackgroundColor3 = if accent
+					then if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else Theme.Lime
+					else Theme.Surface,
+			}):Play()
+		end)
+	end
 	return button
 end
 
-local inventoryButton = makeButton(hudButtons, "▣  WARDROBE", UDim2.fromOffset(138, 58), false)
-local fitButton = makeButton(hudButtons, "✦  FIT BUILDER", UDim2.fromOffset(138, 58), true)
+local inventoryButton = makeButton(hudButtons, "WARDROBE", UDim2.fromOffset(138, 58), false)
+local fitButton = makeButton(hudButtons, "FIT BUILDER", UDim2.fromOffset(138, 58), true)
 
 local phoneDock = create("Frame", {
 	BackgroundColor3 = Theme.LimeDark,
@@ -380,7 +436,7 @@ local phoneDock = create("Frame", {
 }) :: Frame
 addCorner(phoneDock, 18)
 addStroke(phoneDock, Theme.White, 1, 0.25)
-local phoneDockButton = makeButton(phoneDock, "▲  FLIPTAG", UDim2.fromScale(1, 1), true)
+local phoneDockButton = makeButton(phoneDock, "PHONE", UDim2.fromScale(1, 1), true, true)
 phoneDockButton.BackgroundColor3 = Theme.LimeDark
 phoneDockButton.TextColor3 = Theme.White
 phoneDockButton.ZIndex = 5
@@ -479,6 +535,29 @@ local function animateClothingRoll(rawItem: { [string]: any })
 	addCorner(rollWindow, 18)
 	addStroke(rollWindow, Theme.Lime, 4)
 
+	if rollState.Source then
+		local autoRollButton = create("TextButton", {
+			AutoButtonColor = false,
+			BackgroundColor3 = if rollState.Auto then Theme.Danger else Theme.Lime,
+			Size = UDim2.fromOffset(180, 38),
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 1, 14),
+			Font = Enum.Font.GothamBold,
+			Text = if rollState.Auto then "STOP" else "AUTOROLL",
+			TextColor3 = Theme.Background,
+			TextSize = 13,
+			ZIndex = 70,
+			Parent = rollWindow,
+		}) :: TextButton
+		addCorner(autoRollButton, 12)
+		addStroke(autoRollButton, Theme.Paper, 2)
+		autoRollButton.MouseButton1Click:Connect(function()
+			rollState.Auto = not rollState.Auto
+			autoRollButton.Text = if rollState.Auto then "STOP" else "AUTOROLL"
+			autoRollButton.BackgroundColor3 = if rollState.Auto then Theme.Danger else Theme.Lime
+		end)
+	end
+
 	-- Inner viewport, matching the reference style.
 	local viewport = create("Frame", {
 		Name = "RollViewport",
@@ -545,6 +624,7 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		Rarity = tostring(rawItem.Rarity),
 		Value = tonumber(rawItem.Value) or 0,
 		Visual = tostring(rawItem.Visual),
+		Image = if rawItem.Image ~= nil then tostring(rawItem.Image) else nil,
 		Limited = if rawItem.Limited ~= nil then tostring(rawItem.Limited) else nil,
 		State = "Owned",
 	}
@@ -622,19 +702,30 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		}) :: Frame
 		addCorner(imageBox, 5)
 
-		create("TextLabel", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
-			Font = Enum.Font.GothamBlack,
-			Text = string.upper(tostring(item.Visual or "ITEM")),
-			TextColor3 = rarityColor(item),
-			TextSize = 12,
-			TextWrapped = true,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			TextYAlignment = Enum.TextYAlignment.Center,
-			ZIndex = 48,
-			Parent = imageBox,
-		})
+		if item.Image and string.match(item.Image, "^rbxassetid://%d+$") then
+			create("ImageLabel", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				Image = item.Image,
+				ScaleType = Enum.ScaleType.Crop,
+				ZIndex = 48,
+				Parent = imageBox,
+			})
+		else
+			create("TextLabel", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				Font = Enum.Font.GothamBlack,
+				Text = string.upper(tostring(item.Visual or "ITEM")),
+				TextColor3 = rarityColor(item),
+				TextSize = 12,
+				TextWrapped = true,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				ZIndex = 48,
+				Parent = imageBox,
+			})
+		end
 
 		create("TextLabel", {
 			BackgroundTransparency = 1,
@@ -755,6 +846,23 @@ local function animateClothingRoll(rawItem: { [string]: any })
 
 	task.wait(0.65)
 	rollWindow:Destroy()
+	rollState.Active = false
+	if rollState.Auto and rollState.Source and rollState.Remote then
+		if coins < rollState.Price then
+			rollState.Auto = false
+			rollState.Source = nil
+			showToast("AUTOROLL STOPPED - NOT ENOUGH CASH", Theme.Danger)
+		else
+			local source = rollState.Source
+			task.delay(0.35, function()
+				if rollState.Auto and not rollState.Active and rollState.Remote then
+					rollState.Remote:FireServer("AutoRoll", source)
+				end
+			end)
+		end
+	else
+		rollState.Source = nil
+	end
 
 	--==================================================
 	-- ADD WON ITEM TO INVENTORY
@@ -772,7 +880,7 @@ end
 -- made from UI shapes so every item can be recognised before 3D clothing models exist.
 local function createGarmentPreview(parent: Instance, item: ClothingItem, position: UDim2, size: UDim2, zIndex: number)
 	local preview = create("Frame", {
-		BackgroundColor3 = Color3.fromRGB(224, 238, 255),
+		BackgroundColor3 = Theme.Surface,
 		BorderSizePixel = 0,
 		Position = position,
 		Size = size,
@@ -780,6 +888,17 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 		Parent = parent,
 	}) :: Frame
 	addCorner(preview, 11)
+	if item.Image and string.match(item.Image, "^rbxassetid://%d+$") then
+		create("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Image = item.Image,
+			ScaleType = Enum.ScaleType.Fit,
+			ZIndex = zIndex + 1,
+			Parent = preview,
+		})
+		return
+	end
 
 	local tint = rarityColor(item)
 	local function part(partSize: UDim2, partPosition: UDim2, rotation: number?)
@@ -858,7 +977,7 @@ end
 local function makeWindow(name: string, size: UDim2): Frame
 	local window = create("Frame", {
 		Name = name,
-		BackgroundColor3 = Theme.Background,
+		BackgroundColor3 = Theme.Surface,
 		Size = size,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.52, 0),
@@ -866,8 +985,8 @@ local function makeWindow(name: string, size: UDim2): Frame
 		ZIndex = 10,
 		Parent = screenGui,
 	}) :: Frame
-	addCorner(window, 20)
-	addStroke(window, Theme.SurfaceLight, 1)
+	addCorner(window, 18)
+	addStroke(window, Theme.Paper, 4)
 	return window
 end
 
@@ -875,8 +994,8 @@ local inventoryWindow = makeWindow("InventoryWindow", UDim2.fromScale(0.84, 0.77
 local fitWindow = makeWindow("FitWindow", UDim2.fromScale(0.84, 0.77))
 local phoneWindow = create("Frame", {
 	Name = "PhoneWindow",
-	BackgroundColor3 = Color3.fromRGB(231, 242, 255),
-	Size = UDim2.fromOffset(414, 710),
+	BackgroundColor3 = Theme.Surface,
+		Size = UDim2.fromOffset(414, 660),
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, 740),
 	ClipsDescendants = false,
@@ -885,7 +1004,7 @@ local phoneWindow = create("Frame", {
 	Parent = screenGui,
 }) :: Frame
 addCorner(phoneWindow, 38)
-addStroke(phoneWindow, Color3.fromRGB(91, 145, 205), 2)
+addStroke(phoneWindow, Theme.Paper, 4)
 
 local phoneScreen = create("Frame", {
 	BackgroundColor3 = Theme.Background,
@@ -911,7 +1030,7 @@ create("TextLabel", {
 	Parent = phoneScreen,
 })
 local dynamicIsland = create("Frame", {
-	BackgroundColor3 = Color3.fromRGB(210, 228, 248),
+	BackgroundColor3 = Theme.Paper,
 	Size = UDim2.fromOffset(106, 27),
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 8),
@@ -920,7 +1039,7 @@ local dynamicIsland = create("Frame", {
 }) :: Frame
 addCorner(dynamicIsland, 15)
 create("Frame", {
-	BackgroundColor3 = Color3.fromRGB(75, 116, 165),
+	BackgroundColor3 = Theme.Lime,
 	Size = UDim2.fromOffset(8, 8),
 	AnchorPoint = Vector2.new(1, 0.5),
 	Position = UDim2.new(1, -12, 0.5, 0),
@@ -966,7 +1085,7 @@ addStroke(battery, Theme.Paper, 1)
 
 local function makePhoneSideButton(position: UDim2, size: UDim2)
 	local sideButton = create("Frame", {
-		BackgroundColor3 = Color3.fromRGB(91, 145, 205),
+		BackgroundColor3 = Theme.Paper,
 		BorderSizePixel = 0,
 		Position = position,
 		Size = size,
@@ -1088,8 +1207,8 @@ local categoryLayout = create("UIListLayout", {
 local inventoryGrid = create("ScrollingFrame", {
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
-	Size = UDim2.new(1, -510, 1, -132),
-	Position = UDim2.fromOffset(182, 106),
+	Size = UDim2.new(1, -516, 1, -138),
+	Position = UDim2.fromOffset(185, 109),
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
 	CanvasSize = UDim2.fromOffset(0, 0),
 	ScrollBarThickness = 4,
@@ -1097,6 +1216,7 @@ local inventoryGrid = create("ScrollingFrame", {
 	ZIndex = 11,
 	Parent = inventoryWindow,
 }) :: ScrollingFrame
+addPadding(inventoryGrid, 3, 3, 3, 3)
 local gridLayout = create("UIGridLayout", {
 	CellSize = UDim2.fromOffset(174, 242),
 	CellPadding = UDim2.fromOffset(10, 10),
@@ -1158,7 +1278,7 @@ local inspectorMeta = create("TextLabel", {
 
 local equippedPanel = create("Frame", {
 	BackgroundColor3 = Theme.Background,
-	Size = UDim2.new(1, 0, 0, 180),
+	Size = UDim2.new(1, 0, 0, 136),
 	Position = UDim2.fromOffset(0, 165),
 	ZIndex = 12,
 	Parent = inspector,
@@ -1218,11 +1338,11 @@ local function refreshEquipped()
 		local item = equipped[category]
 		create("TextLabel", {
 			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 23),
+				Size = UDim2.new(1, 0, 0, 18),
 			Font = Enum.Font.GothamMedium,
 			Text = string.format("%s  %s", CategoryShort[category], if item then item.Name else "—"),
 			TextColor3 = if item then Theme.Paper else Theme.Muted,
-			TextSize = 10,
+			TextSize = 9,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			ZIndex = 14,
@@ -1261,7 +1381,7 @@ local function makeItemCard(item: ClothingItem, order: number)
 		Parent = inventoryGrid,
 	}) :: TextButton
 	addCorner(card, 13)
-	addStroke(card, if selectedItem == item then Theme.Lime else Theme.SurfaceLight, if selectedItem == item then 2 else 1)
+	addStroke(card, if selectedItem == item then Theme.Lime else Theme.SurfaceLight, 1)
 	addPadding(card, 12, 12, 11, 11)
 
 	createGarmentPreview(card, item, UDim2.fromOffset(12, 11), UDim2.new(1, -24, 0, 92), 13)
@@ -1297,7 +1417,7 @@ local function makeItemCard(item: ClothingItem, order: number)
 		Size = UDim2.new(1, 0, 0, 18),
 		Position = UDim2.fromOffset(0, 178),
 		Font = Enum.Font.GothamMedium,
-		Text = item.Style .. " · " .. item.Rarity,
+		Text = string.format("%s · %s · LUCK +%.1f%%", item.Style, item.Rarity, rarityLuck(item.Rarity)),
 		TextColor3 = Theme.Muted,
 		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -1370,6 +1490,26 @@ refreshInventory = function()
 	end
 	refreshInspector()
 	cashLabel.Text = "$" .. formatCoins(coins)
+	local luck = 0
+	for _, equippedItem in pairs(equipped) do
+		if equippedItem then
+			if equippedItem.Rarity == "Uncommon" then luck += 0.1 end
+			if equippedItem.Rarity == "Rare" then luck += 0.25 end
+			if equippedItem.Rarity == "Epic" then luck += 0.5 end
+			if equippedItem.Rarity == "Grail" then luck += 1 end
+			if equippedItem.Rarity == "Limited" then luck += 1.5 end
+			if equippedItem.Rarity == "Legendary" then luck += 2 end
+			if equippedItem.Rarity == "Mythic" then luck += 3 end
+			if equippedItem.Rarity == "Secret" then luck += 5 end
+		end
+	end
+	if rollState.LuckLabel then
+		rollState.LuckLabel.Text = string.format("DROP LUCK  +%.1f%%  %.2fx", luck, 1 + luck / 100)
+		rollState.LuckLabel.TextColor3 = if luck > 0 then Theme.Uncommon else Theme.Muted
+	end
+	if rollState.LuckRemote then
+		rollState.LuckRemote:FireServer(luck)
+	end
 end
 
 local function removeFromWardrobe(item: ClothingItem)
@@ -1529,15 +1669,16 @@ end
 type FitDropSlot = {
 	Frame: Frame,
 	ItemLabel: TextLabel,
+	ItemImage: ImageLabel,
 	Category: string,
 }
 
 local fitDropSlots: { [string]: FitDropSlot } = {}
 local fitSlotData = {
 	{ Category = "Head", Label = "HEAD", Position = UDim2.new(0.5, -77, 0.12, 0), Size = UDim2.fromOffset(154, 66) },
-	{ Category = "Top", Label = "TOP", Position = UDim2.new(0.5, -86, 0.34, 0), Size = UDim2.fromOffset(172, 70) },
-	{ Category = "Bottom", Label = "BOTTOM", Position = UDim2.new(0.5, -86, 0.56, 0), Size = UDim2.fromOffset(172, 70) },
-	{ Category = "Shoes", Label = "SHOES", Position = UDim2.new(0.5, -86, 0.79, 0), Size = UDim2.fromOffset(172, 70) },
+	{ Category = "Top", Label = "TOP", Position = UDim2.new(0.5, -86, 0.34, 0), Size = UDim2.fromOffset(172, 90) },
+	{ Category = "Bottom", Label = "BOTTOM", Position = UDim2.new(0.5, -86, 0.62, 0), Size = UDim2.fromOffset(172, 70) },
+	{ Category = "Shoes", Label = "SHOES", Position = UDim2.new(0.5, -86, 0.82, 0), Size = UDim2.fromOffset(172, 70) },
 	{ Category = "Accessory", Label = "EXTRA ACC", Position = UDim2.new(0.75, 14, 0.39, 0), Size = UDim2.fromOffset(140, 62) },
 }
 
@@ -1577,7 +1718,18 @@ for _, slotData in ipairs(fitSlotData) do
 		ZIndex = 15,
 		Parent = slot,
 	}) :: TextLabel
-	fitDropSlots[slotData.Category] = { Frame = slot, ItemLabel = itemLabel, Category = slotData.Category }
+	local itemImage = create("ImageLabel", {
+		BackgroundTransparency = 1,
+		Size = if slotData.Category == "Top" then UDim2.fromOffset(110, 48) else UDim2.fromOffset(76, 34),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = if slotData.Category == "Top" then UDim2.new(0.5, 0, 0, 22) else UDim2.new(0.5, 0, 0, 24),
+		Image = "",
+		ScaleType = Enum.ScaleType.Fit,
+		Visible = false,
+		ZIndex = 15,
+		Parent = slot,
+	}) :: ImageLabel
+	fitDropSlots[slotData.Category] = { Frame = slot, ItemLabel = itemLabel, ItemImage = itemImage, Category = slotData.Category }
 end
 
 local fitValue = create("TextLabel", {
@@ -1713,7 +1865,7 @@ local function makeFitWardrobeCard(item: ClothingItem)
 		Size = UDim2.new(1, -108, 0, 15),
 		Position = UDim2.fromOffset(98, 62),
 		Font = Enum.Font.GothamMedium,
-		Text = "DRAG TO " .. string.upper(item.Category),
+		Text = string.format("DRAG TO %s · LUCK +%.1f%%", string.upper(item.Category), rarityLuck(item.Rarity)),
 		TextColor3 = Theme.Muted,
 		TextSize = 9,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -1740,11 +1892,29 @@ refreshFit = function()
 		if item then
 			slot.ItemLabel.Text = item.Name
 			slot.ItemLabel.TextColor3 = rarityColor(item)
+			if item.Image and string.match(item.Image, "^rbxassetid://%d+$") then
+				slot.ItemImage.Image = item.Image
+				slot.ItemImage.Visible = true
+				slot.ItemLabel.Position = if category == "Top" then UDim2.fromOffset(8, 72) else UDim2.fromOffset(8, 53)
+				slot.ItemLabel.Size = UDim2.new(1, -16, 0, 15)
+				slot.ItemLabel.TextSize = 8
+			else
+				slot.ItemImage.Image = ""
+				slot.ItemImage.Visible = false
+				slot.ItemLabel.Position = UDim2.fromOffset(8, 26)
+				slot.ItemLabel.Size = UDim2.new(1, -16, 0, 25)
+				slot.ItemLabel.TextSize = 10
+			end
 			slot.Frame.BackgroundColor3 = Theme.White
 			value += item.Value
 		else
 			slot.ItemLabel.Text = "DROP ITEM HERE"
 			slot.ItemLabel.TextColor3 = Theme.Muted
+			slot.ItemImage.Image = ""
+			slot.ItemImage.Visible = false
+			slot.ItemLabel.Position = UDim2.fromOffset(8, 26)
+			slot.ItemLabel.Size = UDim2.new(1, -16, 0, 25)
+		slot.ItemLabel.TextSize = 10
 			slot.Frame.BackgroundColor3 = Theme.Surface
 		end
 	end
@@ -1979,35 +2149,11 @@ addCorner(cameraFrameTopGlow, 2)
 local cameraTopBar = create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(7, 6, 12),
 	BackgroundTransparency = 1,
-	Size = UDim2.new(1, 0, 0, 96),
+	Size = UDim2.new(1, 0, 0, 68),
 	Position = UDim2.fromOffset(0, 0),
 	ZIndex = 81,
-	Parent = cameraOverlay,
+	Parent = cameraFrameGuide,
 }) :: Frame
-local cameraTopTitle = create("TextLabel", {
-	BackgroundTransparency = 1,
-	Size = UDim2.new(1, -160, 0, 30),
-	Position = UDim2.fromOffset(28, 23),
-	Font = Enum.Font.GothamBlack,
-	Text = "RO-GRAM",
-	TextColor3 = SocialTheme.Text,
-	TextSize = 25,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	ZIndex = 82,
-	Parent = cameraTopBar,
-})
-create("TextLabel", {
-	BackgroundTransparency = 1,
-	Size = UDim2.new(1, -160, 0, 20),
-	Position = UDim2.fromOffset(29, 54),
-	Font = Enum.Font.GothamMedium,
-	Text = "CAMERA  ·  FIT CAPTURE",
-	TextColor3 = SocialTheme.Muted,
-	TextSize = 10,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	ZIndex = 82,
-	Parent = cameraTopBar,
-})
 
 local cameraClose = create("TextButton", {
 	AutoButtonColor = false,
@@ -2027,34 +2173,36 @@ addCorner(cameraClose, 14)
 local cameraBottomBar = create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(7, 6, 12),
 	BackgroundTransparency = 1,
-	Size = UDim2.new(1, 0, 0, 170),
+	Size = UDim2.new(1, 0, 0, 150),
 	AnchorPoint = Vector2.new(0, 1),
 	Position = UDim2.new(0, 0, 1, 0),
 	ZIndex = 81,
-	Parent = cameraOverlay,
+	Parent = cameraFrameGuide,
 }) :: Frame
 
 cameraHud = create("Frame", {
 	BackgroundTransparency = 1,
-	Size = UDim2.new(1, -48, 0, 52),
-	Position = UDim2.fromOffset(24, 18),
+	Size = UDim2.new(1, 0, 0, 42),
+	Position = UDim2.fromOffset(0, 58),
 	ZIndex = 82,
 	Parent = cameraBottomBar,
 }) :: Frame
 
-local cameraModeButton = makeButton(cameraHud, "FRONT CAMERA", UDim2.fromOffset(128, 42), true)
+local cameraModeButton = makeButton(cameraHud, "FRONT", UDim2.fromOffset(76, 42), true)
+cameraModeButton.Position = UDim2.new(0.5, -157, 0, 0)
 cameraModeButton.BackgroundColor3 = SocialTheme.Purple
 cameraModeButton.TextColor3 = SocialTheme.Text
 cameraModeButton.ZIndex = 83
 
-local cameraZoomOut = makeButton(cameraHud, "−", UDim2.fromOffset(42, 42), false)
-cameraZoomOut.Position = UDim2.fromOffset(138, 0)
+local cameraZoomOut = makeButton(cameraHud, "−", UDim2.fromOffset(38, 38), false)
+cameraZoomOut.Position = UDim2.new(0.5, 53, 0, 2)
 cameraZoomOut.ZIndex = 83
 
 local cameraZoomLabel = create("TextLabel", {
-	BackgroundTransparency = 1,
-	Size = UDim2.fromOffset(70, 42),
-	Position = UDim2.fromOffset(184, 0),
+	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+	BackgroundTransparency = 0.08,
+	Size = UDim2.fromOffset(48, 38),
+	Position = UDim2.new(0.5, 95, 0, 2),
 	Font = Enum.Font.GothamBlack,
 	Text = "1.0×",
 	TextColor3 = SocialTheme.Text,
@@ -2063,9 +2211,10 @@ local cameraZoomLabel = create("TextLabel", {
 	ZIndex = 83,
 	Parent = cameraHud,
 }) :: TextLabel
+addCorner(cameraZoomLabel, 12)
 
-local cameraZoomIn = makeButton(cameraHud, "+", UDim2.fromOffset(42, 42), false)
-cameraZoomIn.Position = UDim2.fromOffset(258, 0)
+local cameraZoomIn = makeButton(cameraHud, "+", UDim2.fromOffset(38, 38), false)
+cameraZoomIn.Position = UDim2.new(0.5, 147, 0, 2)
 cameraZoomIn.ZIndex = 83
 
 cameraReticle = create("Frame", {
@@ -2101,7 +2250,7 @@ local reticleV = create("Frame", {
 local cameraStatus = create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -48, 0, 1),
-	Position = UDim2.new(0, 24, 0, 76),
+	Position = UDim2.new(0, 24, 0, 58),
 	Font = Enum.Font.GothamBold,
 	Text = "",
 	TextColor3 = SocialTheme.Text,
@@ -2119,7 +2268,7 @@ cameraShutter = create("TextButton", {
 	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 	Size = UDim2.fromOffset(82, 82),
 	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -25),
+	Position = UDim2.new(0.5, 0, 1, -10),
 	Font = Enum.Font.GothamBlack,
 	Text = "●",
 	TextColor3 = SocialTheme.Purple,
@@ -2521,7 +2670,7 @@ updateCameraView = function()
 	camera.Focus = CFrame.new(rootPosition)
 	camera.FieldOfView = math.clamp(62 - ((7 - cameraDistance) * 4), 38, 70)
 	if cameraZoomLabel then cameraZoomLabel.Text = string.format("%.1f×", 7 / cameraDistance) end
-	if cameraModeButton then cameraModeButton.Text = if cameraMode == "SELFIE" then "SELFIE CAMERA" else "FRONT CAMERA" end
+	if cameraModeButton then cameraModeButton.Text = cameraMode end
 end
 
 local function flashCamera()
@@ -3761,10 +3910,16 @@ task.spawn(function()
 	local remotes = ReplicatedStorage:WaitForChild("ThriftRemotes")
 	local remote = remotes:WaitForChild("ClothingFound")
 	local rackRemote = remotes:WaitForChild("RoundRackRoll")
+	local luckRemote = remotes:WaitForChild("RollLuckUpdate")
+	rollState.Remote = rackRemote
+	if luckRemote:IsA("RemoteEvent") then
+		rollState.LuckRemote = luckRemote
+	end
 
-	if not remote:IsA("RemoteEvent") or not rackRemote:IsA("RemoteEvent") then
+	if not remote:IsA("RemoteEvent") or not rackRemote:IsA("RemoteEvent") or not luckRemote:IsA("RemoteEvent") then
 		return
 	end
+	refreshInventory()
 
 	-- Okragly wieszak: serwer najpierw proponuje wylosowany item za $100.
 	-- Poniewaz obecny prototyp przechowuje coins lokalnie, platnosc jest
@@ -3773,17 +3928,24 @@ task.spawn(function()
 		if type(payload) ~= "table" or payload.Type ~= "Offer" then
 			return
 		end
-
+		if rollState.Active then
+			rackRemote:FireServer("Cancel")
+			return
+		end
 		local price = tonumber(payload.Price) or 100
 		if coins < price then
+			rollState.Auto = false
+			rollState.Source = nil
 			showToast("NOT ENOUGH CASH - NEED $" .. formatCoins(price), Theme.Danger)
 			rackRemote:FireServer("Cancel")
 			return
 		end
 
+		rollState.Source = tostring(payload.Source or "")
+		rollState.Price = price
 		coins -= price
 		cashLabel.Text = "$" .. formatCoins(coins)
-		showToast("ROUND RACK: -$" .. formatCoins(price), Theme.Muted)
+		showToast(string.upper(tostring(payload.Source or "CLOTHING ROLL")) .. ": -$" .. formatCoins(price), Theme.Muted)
 
 		-- Serwer posiada juz konkretny wylosowany item, wiec nie mozna
 		-- zmienic wyniku po stronie klienta.
@@ -3797,8 +3959,20 @@ task.spawn(function()
 		if payload.Type ~= "Found" or type(payload.Item) ~= "table" then
 			return
 		end
-
-		task.spawn(animateClothingRoll, payload.Item)
+		if rollState.Active then
+			return
+		end
+		rollState.Source = if payload.Source ~= nil then tostring(payload.Source) else nil
+		rollState.Price = tonumber(payload.Price) or 0
+		rollState.Active = true
+		task.spawn(function()
+			local ok, errorMessage = pcall(animateClothingRoll, payload.Item)
+			rollState.Active = false
+			if not ok then
+				warn("[ThriftUI] Clothing roll error:", errorMessage)
+				showToast("CLOTHING ROLL FAILED", Theme.Danger)
+			end
+		end)
 		registerOwnedInventory()
 
 		if payload.UnlockMessage then
