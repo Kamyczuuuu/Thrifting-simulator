@@ -120,6 +120,22 @@ local equipped: { [string]: ClothingItem? } = {
 }
 local shipments: { Shipment } = {}
 local currentPhoneTab = "LISTINGS"
+
+-- Namespace table for all helper/UI-building functions below.
+-- (Grouping them here instead of 50+ separate top-level locals is what keeps
+-- this script under Luau's 200-local-register-per-chunk limit.)
+local Fn = {}
+
+-- Paczki z FinishAt = 0 czekają na odłożenie w paczkomacie (dostawa jeszcze się nie zaczęła).
+function Fn.countPendingShipments(): number
+	local pending = 0
+	for _, shipment in ipairs(shipments) do
+		if shipment.FinishAt == 0 then
+			pending += 1
+		end
+	end
+	return pending
+end
 local currentPhoneApp = "HOME"
 local currentSocialTab = "FYP"
 local socialSearchQuery = ""
@@ -174,12 +190,6 @@ local socialPaletteActive = false
 local toastVersion = 0
 local toastQueue: { { message: string, accent: Color3? } } = {}
 local toastShowing = false
-local refreshInventory: () -> ()
-local refreshFit: () -> ()
-local refreshPhone: () -> ()
-local setCameraActive: (boolean) -> ()
-local updateCameraView: () -> ()
-local updateCameraFrame: () -> ()
 
 local pendingPhotoContent: string? = nil
 local pendingPhotoId: string? = nil
@@ -188,7 +198,7 @@ local postPreviewModal: Frame? = nil
 local postPreviewImage: ImageLabel? = nil
 local postPreviewCaption: TextBox? = nil
 
-local function create(className: string, properties: { [string]: any }?): Instance
+function Fn.create(className: string, properties: { [string]: any }?): Instance
 	local instance = Instance.new(className)
 	if properties then
 		for property, value in pairs(properties) do
@@ -205,15 +215,15 @@ local function create(className: string, properties: { [string]: any }?): Instan
 	return instance
 end
 
-local function addCorner(parent: Instance, radius: number)
-	create("UICorner", {
+function Fn.addCorner(parent: Instance, radius: number)
+	Fn.create("UICorner", {
 		CornerRadius = UDim.new(0, radius),
 		Parent = parent,
 	})
 end
 
-local function addStroke(parent: Instance, color: Color3, thickness: number, transparency: number?)
-	create("UIStroke", {
+function Fn.addStroke(parent: Instance, color: Color3, thickness: number, transparency: number?)
+	Fn.create("UIStroke", {
 		Color = color,
 		Thickness = thickness,
 		Transparency = transparency or 0,
@@ -222,8 +232,8 @@ local function addStroke(parent: Instance, color: Color3, thickness: number, tra
 	})
 end
 
-local function addPadding(parent: Instance, left: number, right: number, top: number, bottom: number)
-	create("UIPadding", {
+function Fn.addPadding(parent: Instance, left: number, right: number, top: number, bottom: number)
+	Fn.create("UIPadding", {
 		PaddingLeft = UDim.new(0, left),
 		PaddingRight = UDim.new(0, right),
 		PaddingTop = UDim.new(0, top),
@@ -232,21 +242,21 @@ local function addPadding(parent: Instance, left: number, right: number, top: nu
 	})
 end
 
-local function formatCoins(amount: number): string
+function Fn.formatCoins(amount: number): string
 	local reversed = tostring(math.floor(amount)):reverse()
 	local grouped = reversed:gsub("(%d%d%d)", "%1,")
 	local result = grouped:reverse():gsub("^,", "")
 	return result
 end
 
-local function rarityColor(item: ClothingItem): Color3
+function Fn.rarityColor(item: ClothingItem): Color3
 	if item.Limited then
 		return Theme.Limited
 	end
 	return (Theme :: any)[item.Rarity] or Theme.Common
 end
 
-local function rarityLuck(rarity: string): number
+function Fn.rarityLuck(rarity: string): number
 	if rarity == "Uncommon" then return 0.1 end
 	if rarity == "Rare" then return 0.25 end
 	if rarity == "Epic" then return 0.5 end
@@ -258,7 +268,7 @@ local function rarityLuck(rarity: string): number
 	return 0
 end
 
-local function ownedCount(): number
+function Fn.ownedCount(): number
 	local count = 0
 	for _, item in ipairs(inventory) do
 		if item.State == "Owned" then
@@ -268,7 +278,7 @@ local function ownedCount(): number
 	return count
 end
 
-local screenGui = create("ScreenGui", {
+local screenGui = Fn.create("ScreenGui", {
 	Name = "ThriftUI",
 	ResetOnSpawn = false,
 	IgnoreGuiInset = true,
@@ -289,25 +299,25 @@ if remoteFolder and remoteFolder:IsA("Folder") then
 	if pRemote and pRemote:IsA("RemoteEvent") then photoRemote = pRemote end
 end
 
-local hud = create("Frame", {
+local hud = Fn.create("Frame", {
 	Name = "HUD",
 	BackgroundTransparency = 1,
 	Size = UDim2.fromScale(1, 1),
 	Parent = screenGui,
 }) :: Frame
 
-local titleBlock = create("Frame", {
+local titleBlock = Fn.create("Frame", {
 	BackgroundColor3 = Theme.LimeDark,
 	Size = UDim2.fromOffset(218, 74),
 	Position = UDim2.fromOffset(22, 22),
 	Parent = hud,
 }) :: Frame
 titleBlock.Visible = false
-addCorner(titleBlock, 14)
-addStroke(titleBlock, Theme.SurfaceLight, 1)
-addPadding(titleBlock, 15, 15, 11, 10)
+Fn.addCorner(titleBlock, 14)
+Fn.addStroke(titleBlock, Theme.SurfaceLight, 1)
+Fn.addPadding(titleBlock, 15, 15, 11, 10)
 
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 24),
 	Font = Enum.Font.GothamBlack,
@@ -318,16 +328,16 @@ create("TextLabel", {
 	Parent = titleBlock,
 })
 
-local cashChip = create("Frame", {
+local cashChip = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Surface,
 	Size = UDim2.fromOffset(152, 58),
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -22, 0, 22),
 	Parent = hud,
 }) :: Frame
-addCorner(cashChip, 16)
-addStroke(cashChip, Theme.SurfaceLight, 1)
-create("TextLabel", {
+Fn.addCorner(cashChip, 16)
+Fn.addStroke(cashChip, Theme.SurfaceLight, 1)
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(58, 58),
 	Position = UDim2.fromOffset(14, 0),
@@ -338,7 +348,7 @@ create("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Left,
 	Parent = cashChip,
 })
-local cashLabel = create("TextLabel", {
+local cashLabel = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -76, 1, 0),
 	Position = UDim2.fromOffset(62, 0),
@@ -349,7 +359,7 @@ local cashLabel = create("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Right,
 	Parent = cashChip,
 }) :: TextLabel
-rollState.LuckLabel = create("TextLabel", {
+rollState.LuckLabel = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(190, 24),
 	AnchorPoint = Vector2.new(1, 0),
@@ -362,7 +372,7 @@ rollState.LuckLabel = create("TextLabel", {
 	ZIndex = 12,
 	Parent = hud,
 }) :: TextLabel
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 18),
 	Position = UDim2.fromOffset(0, 30),
@@ -374,59 +384,59 @@ create("TextLabel", {
 	Parent = titleBlock,
 })
 
-local hudButtons = create("Frame", {
+local hudButtons = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(284, 58),
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -184, 0, 22),
 	Parent = hud,
 }) :: Frame
-create("UIListLayout", {
+Fn.create("UIListLayout", {
 	FillDirection = Enum.FillDirection.Horizontal,
 	HorizontalAlignment = Enum.HorizontalAlignment.Right,
 	Padding = UDim.new(0, 8),
 	Parent = hudButtons,
 })
 
-local function makeButton(parent: Instance, text: string, size: UDim2, accent: boolean?, fixedColor: boolean?): TextButton
+function Fn.makeButton(parent: Instance, text: string, size: UDim2, accent: boolean?, fixedColor: boolean?): TextButton
 	local accentColor = if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else Theme.Lime
 	local accentTextColor = if currentPhoneApp == "SOCIAL" then SocialTheme.Text else Theme.Background
-	local button = create("TextButton", {
+	local button = Fn.create("TextButton", {
 		AutoButtonColor = false,
 		BackgroundColor3 = if accent then accentColor else Theme.Surface,
 		Size = size,
 		Font = Enum.Font.GothamBold,
-	Text = text,
+		Text = text,
 		TextColor3 = if accent then accentTextColor else Theme.Paper,
-	TextSize = 14,
+		TextSize = 14,
 		Parent = parent,
 	}) :: TextButton
-	addCorner(button, 12)
-	addStroke(button, Theme.Paper, 3)
+	Fn.addCorner(button, 12)
+	Fn.addStroke(button, Theme.Paper, 3)
 
 	if not fixedColor then
 		button.MouseEnter:Connect(function()
 			TweenService:Create(button, TweenInfo.new(0.12), {
 				BackgroundColor3 = if accent
 					then if currentPhoneApp == "SOCIAL" then SocialTheme.PurpleDark else Color3.fromRGB(92, 157, 255)
-					else Theme.SurfaceLight,
+				else Theme.SurfaceLight,
 			}):Play()
 		end)
 		button.MouseLeave:Connect(function()
 			TweenService:Create(button, TweenInfo.new(0.12), {
 				BackgroundColor3 = if accent
 					then if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else Theme.Lime
-					else Theme.Surface,
+				else Theme.Surface,
 			}):Play()
 		end)
 	end
 	return button
 end
 
-local inventoryButton = makeButton(hudButtons, "WARDROBE", UDim2.fromOffset(138, 58), false)
-local fitButton = makeButton(hudButtons, "FIT BUILDER", UDim2.fromOffset(138, 58), true)
+local inventoryButton = Fn.makeButton(hudButtons, "WARDROBE", UDim2.fromOffset(138, 58), false)
+local fitButton = Fn.makeButton(hudButtons, "FIT BUILDER", UDim2.fromOffset(138, 58), true)
 
-local phoneDock = create("Frame", {
+local phoneDock = Fn.create("Frame", {
 	BackgroundColor3 = Theme.LimeDark,
 	Size = UDim2.fromOffset(176, 48),
 	AnchorPoint = Vector2.new(0.5, 1),
@@ -434,14 +444,14 @@ local phoneDock = create("Frame", {
 	ZIndex = 4,
 	Parent = hud,
 }) :: Frame
-addCorner(phoneDock, 18)
-addStroke(phoneDock, Theme.White, 1, 0.25)
-local phoneDockButton = makeButton(phoneDock, "PHONE", UDim2.fromScale(1, 1), true, true)
+Fn.addCorner(phoneDock, 18)
+Fn.addStroke(phoneDock, Theme.White, 1, 0.25)
+local phoneDockButton = Fn.makeButton(phoneDock, "PHONE", UDim2.fromScale(1, 1), true, true)
 phoneDockButton.BackgroundColor3 = Theme.LimeDark
 phoneDockButton.TextColor3 = Theme.White
 phoneDockButton.ZIndex = 5
 
-local backdrop = create("TextButton", {
+local backdrop = Fn.create("TextButton", {
 	Name = "Backdrop",
 	AutoButtonColor = false,
 	BackgroundColor3 = Color3.new(0, 0, 0),
@@ -454,7 +464,7 @@ local backdrop = create("TextButton", {
 	Parent = screenGui,
 }) :: TextButton
 
-local toast = create("Frame", {
+local toast = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Paper,
 	Size = UDim2.fromOffset(360, 52),
 	AnchorPoint = Vector2.new(0.5, 0),
@@ -462,8 +472,8 @@ local toast = create("Frame", {
 	ZIndex = 30,
 	Parent = screenGui,
 }) :: Frame
-addCorner(toast, 13)
-local toastLabel = create("TextLabel", {
+Fn.addCorner(toast, 13)
+local toastLabel = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromScale(1, 1),
 	Font = Enum.Font.GothamBold,
@@ -474,7 +484,7 @@ local toastLabel = create("TextLabel", {
 	Parent = toast,
 }) :: TextLabel
 
-local function processToastQueue()
+function Fn.processToastQueue()
 	if toastShowing then
 		return
 	end
@@ -510,20 +520,20 @@ local function processToastQueue()
 	end)
 end
 
-local function showToast(message: string, accent: Color3?)
+function Fn.showToast(message: string, accent: Color3?)
 	table.insert(toastQueue, {
 		message = message,
 		accent = accent,
 	})
-	processToastQueue()
+	Fn.processToastQueue()
 end
 
-local function animateClothingRoll(rawItem: { [string]: any })
+function Fn.animateClothingRoll(rawItem: { [string]: any })
 	--==================================================
 	-- HORIZONTAL CLOTHING ROULETTE
 	--==================================================
 
-	local rollWindow = create("Frame", {
+	local rollWindow = Fn.create("Frame", {
 		Name = "ClothingRoll",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = Color3.fromRGB(30, 30, 30),
@@ -532,11 +542,11 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		ZIndex = 40,
 		Parent = screenGui,
 	}) :: Frame
-	addCorner(rollWindow, 18)
-	addStroke(rollWindow, Theme.Lime, 4)
+	Fn.addCorner(rollWindow, 18)
+	Fn.addStroke(rollWindow, Theme.Lime, 4)
 
 	if rollState.Source then
-		local autoRollButton = create("TextButton", {
+		local autoRollButton = Fn.create("TextButton", {
 			AutoButtonColor = false,
 			BackgroundColor3 = if rollState.Auto then Theme.Danger else Theme.Lime,
 			Size = UDim2.fromOffset(180, 38),
@@ -549,8 +559,8 @@ local function animateClothingRoll(rawItem: { [string]: any })
 			ZIndex = 70,
 			Parent = rollWindow,
 		}) :: TextButton
-		addCorner(autoRollButton, 12)
-		addStroke(autoRollButton, Theme.Paper, 2)
+		Fn.addCorner(autoRollButton, 12)
+		Fn.addStroke(autoRollButton, Theme.Paper, 2)
 		autoRollButton.MouseButton1Click:Connect(function()
 			rollState.Auto = not rollState.Auto
 			autoRollButton.Text = if rollState.Auto then "STOP" else "AUTOROLL"
@@ -559,7 +569,7 @@ local function animateClothingRoll(rawItem: { [string]: any })
 	end
 
 	-- Inner viewport, matching the reference style.
-	local viewport = create("Frame", {
+	local viewport = Fn.create("Frame", {
 		Name = "RollViewport",
 		BackgroundColor3 = Color3.fromRGB(48, 48, 48),
 		BorderSizePixel = 0,
@@ -569,13 +579,13 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		ZIndex = 41,
 		Parent = rollWindow,
 	}) :: Frame
-	addCorner(viewport, 13)
+	Fn.addCorner(viewport, 13)
 
 	--==================================================
 	-- CENTER MARKER
 	--==================================================
 
-	local marker = create("Frame", {
+	local marker = Fn.create("Frame", {
 		Name = "CenterMarker",
 		BackgroundColor3 = Theme.Lime,
 		BorderSizePixel = 0,
@@ -585,9 +595,9 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		ZIndex = 60,
 		Parent = viewport,
 	}) :: Frame
-	addCorner(marker, 3)
+	Fn.addCorner(marker, 3)
 
-	local markerTop = create("Frame", {
+	local markerTop = Fn.create("Frame", {
 		Name = "CenterMarkerTop",
 		BackgroundColor3 = Theme.Lime,
 		BorderSizePixel = 0,
@@ -652,7 +662,7 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		+ (#choices * CARD_WIDTH)
 		+ ((#choices - 1) * GAP)
 
-	local rollList = create("Frame", {
+	local rollList = Fn.create("Frame", {
 		Name = "RollList",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(0, 0),
@@ -668,7 +678,7 @@ local function animateClothingRoll(rawItem: { [string]: any })
 	local winnerCard: Frame? = nil
 
 	local function createRollCard(item: ClothingItem, index: number): Frame
-		local card = create("Frame", {
+		local card = Fn.create("Frame", {
 			Name = "Item" .. index,
 			BackgroundColor3 = Color3.fromRGB(72, 72, 72),
 			BorderSizePixel = 0,
@@ -680,19 +690,19 @@ local function animateClothingRoll(rawItem: { [string]: any })
 			ZIndex = 46,
 			Parent = rollList,
 		}) :: Frame
-		addCorner(card, 9)
+		Fn.addCorner(card, 9)
 
-		local rarityStripe = create("Frame", {
-			BackgroundColor3 = rarityColor(item),
+		local rarityStripe = Fn.create("Frame", {
+			BackgroundColor3 = Fn.rarityColor(item),
 			BorderSizePixel = 0,
 			Position = UDim2.fromOffset(0, 0),
 			Size = UDim2.new(1, 0, 0, 5),
 			ZIndex = 47,
 			Parent = card,
 		}) :: Frame
-		addCorner(rarityStripe, 6)
+		Fn.addCorner(rarityStripe, 6)
 
-		local imageBox = create("Frame", {
+		local imageBox = Fn.create("Frame", {
 			BackgroundColor3 = Color3.fromRGB(225, 225, 225),
 			BorderSizePixel = 0,
 			Position = UDim2.fromOffset(12, 12),
@@ -700,10 +710,10 @@ local function animateClothingRoll(rawItem: { [string]: any })
 			ZIndex = 47,
 			Parent = card,
 		}) :: Frame
-		addCorner(imageBox, 5)
+		Fn.addCorner(imageBox, 5)
 
 		if item.Image and string.match(item.Image, "^rbxassetid://%d+$") then
-			create("ImageLabel", {
+			Fn.create("ImageLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
 				Image = item.Image,
@@ -712,12 +722,12 @@ local function animateClothingRoll(rawItem: { [string]: any })
 				Parent = imageBox,
 			})
 		else
-			create("TextLabel", {
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
 				Font = Enum.Font.GothamBlack,
 				Text = string.upper(tostring(item.Visual or "ITEM")),
-				TextColor3 = rarityColor(item),
+				TextColor3 = Fn.rarityColor(item),
 				TextSize = 12,
 				TextWrapped = true,
 				TextXAlignment = Enum.TextXAlignment.Center,
@@ -727,7 +737,7 @@ local function animateClothingRoll(rawItem: { [string]: any })
 			})
 		end
 
-		create("TextLabel", {
+		Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, -10, 0, 28),
 			Position = UDim2.fromOffset(5, 83),
@@ -743,28 +753,28 @@ local function animateClothingRoll(rawItem: { [string]: any })
 			Parent = card,
 		})
 
-		local valueLabel = create("TextLabel", {
+		local valueLabel = Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, -10, 0, 14),
 			Position = UDim2.fromOffset(5, 108),
 			Font = Enum.Font.GothamBold,
-			Text = "$" .. formatCoins(item.Value),
-			TextColor3 = rarityColor(item),
+			Text = "$" .. Fn.formatCoins(item.Value),
+			TextColor3 = Fn.rarityColor(item),
 			TextSize = 9,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			ZIndex = 48,
 			Parent = card,
 		}) :: TextLabel
 
-		local rarityDot = create("Frame", {
-			BackgroundColor3 = rarityColor(item),
+		local rarityDot = Fn.create("Frame", {
+			BackgroundColor3 = Fn.rarityColor(item),
 			BorderSizePixel = 0,
 			Position = UDim2.fromOffset(8, 10),
 			Size = UDim2.fromOffset(7, 7),
 			ZIndex = 49,
 			Parent = card,
 		}) :: Frame
-		addCorner(rarityDot, 8)
+		Fn.addCorner(rarityDot, 8)
 
 		if index == winnerIndex then
 			winnerCard = card
@@ -820,9 +830,9 @@ local function animateClothingRoll(rawItem: { [string]: any })
 	--==================================================
 
 	if winnerCard and winnerCard.Parent then
-		addStroke(winnerCard, Theme.Lime, 3)
+		Fn.addStroke(winnerCard, Theme.Lime, 3)
 
-		local scale = create("UIScale", {
+		local scale = Fn.create("UIScale", {
 			Scale = 1,
 			Parent = winnerCard,
 		}) :: UIScale
@@ -851,7 +861,7 @@ local function animateClothingRoll(rawItem: { [string]: any })
 		if coins < rollState.Price then
 			rollState.Auto = false
 			rollState.Source = nil
-			showToast("AUTOROLL STOPPED - NOT ENOUGH CASH", Theme.Danger)
+			Fn.showToast("AUTOROLL STOPPED - NOT ENOUGH CASH", Theme.Danger)
 		else
 			local source = rollState.Source
 			task.delay(0.35, function()
@@ -871,15 +881,15 @@ local function animateClothingRoll(rawItem: { [string]: any })
 	table.insert(inventory, winner)
 	selectedItem = winner
 	currentCategory = winner.Category
-	refreshInventory()
-	refreshFit()
-	showToast("FOUND: " .. string.upper(winner.Name), Theme.Lime)
+	Fn.refreshInventory()
+	Fn.refreshFit()
+	Fn.showToast("FOUND: " .. string.upper(winner.Name), Theme.Lime)
 end
 
 -- Product cards use simple garment silhouettes for now. These are intentionally
 -- made from UI shapes so every item can be recognised before 3D clothing models exist.
-local function createGarmentPreview(parent: Instance, item: ClothingItem, position: UDim2, size: UDim2, zIndex: number)
-	local preview = create("Frame", {
+function Fn.createGarmentPreview(parent: Instance, item: ClothingItem, position: UDim2, size: UDim2, zIndex: number)
+	local preview = Fn.create("Frame", {
 		BackgroundColor3 = Theme.Surface,
 		BorderSizePixel = 0,
 		Position = position,
@@ -887,9 +897,9 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 		ZIndex = zIndex,
 		Parent = parent,
 	}) :: Frame
-	addCorner(preview, 11)
+	Fn.addCorner(preview, 11)
 	if item.Image and string.match(item.Image, "^rbxassetid://%d+$") then
-		create("ImageLabel", {
+		Fn.create("ImageLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
 			Image = item.Image,
@@ -900,9 +910,9 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 		return
 	end
 
-	local tint = rarityColor(item)
+	local tint = Fn.rarityColor(item)
 	local function part(partSize: UDim2, partPosition: UDim2, rotation: number?)
-		local visualPart = create("Frame", {
+		local visualPart = Fn.create("Frame", {
 			BackgroundColor3 = tint,
 			BorderSizePixel = 0,
 			Size = partSize,
@@ -911,7 +921,7 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 			ZIndex = zIndex + 1,
 			Parent = preview,
 		}) :: Frame
-		addCorner(visualPart, 5)
+		Fn.addCorner(visualPart, 5)
 		return visualPart
 	end
 
@@ -920,7 +930,7 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 		part(UDim2.fromScale(0.2, 0.25), UDim2.fromScale(0.13, 0.34), -12)
 		part(UDim2.fromScale(0.2, 0.25), UDim2.fromScale(0.67, 0.34), 12)
 		if item.Visual == "ZIP HOODIE" or item.Visual == "LEATHER JACKET" then
-			local zip = create("Frame", {
+			local zip = Fn.create("Frame", {
 				BackgroundColor3 = Theme.White,
 				BorderSizePixel = 0,
 				Size = UDim2.fromScale(0.018, 0.43),
@@ -928,7 +938,7 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 				ZIndex = zIndex + 2,
 				Parent = preview,
 			})
-			addCorner(zip, 2)
+			Fn.addCorner(zip, 2)
 		end
 	elseif item.Category == "Bottom" then
 		part(UDim2.fromScale(0.38, 0.13), UDim2.fromScale(0.31, 0.2))
@@ -948,7 +958,7 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 	else
 		local ring = part(UDim2.fromScale(0.34, 0.34), UDim2.fromScale(0.33, 0.28), 45)
 		ring.BackgroundTransparency = 0.15
-		create("UIStroke", {
+		Fn.create("UIStroke", {
 			Color = Theme.White,
 			Thickness = 3,
 			Parent = ring,
@@ -959,7 +969,7 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 		end
 	end
 
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -12, 0, 16),
 		Position = UDim2.new(0, 6, 1, -20),
@@ -974,8 +984,8 @@ local function createGarmentPreview(parent: Instance, item: ClothingItem, positi
 	})
 end
 
-local function makeWindow(name: string, size: UDim2): Frame
-	local window = create("Frame", {
+function Fn.makeWindow(name: string, size: UDim2): Frame
+	local window = Fn.create("Frame", {
 		Name = name,
 		BackgroundColor3 = Theme.Surface,
 		Size = size,
@@ -985,17 +995,17 @@ local function makeWindow(name: string, size: UDim2): Frame
 		ZIndex = 10,
 		Parent = screenGui,
 	}) :: Frame
-	addCorner(window, 18)
-	addStroke(window, Theme.Paper, 4)
+	Fn.addCorner(window, 18)
+	Fn.addStroke(window, Theme.Paper, 4)
 	return window
 end
 
-local inventoryWindow = makeWindow("InventoryWindow", UDim2.fromScale(0.84, 0.77))
-local fitWindow = makeWindow("FitWindow", UDim2.fromScale(0.84, 0.77))
-local phoneWindow = create("Frame", {
+local inventoryWindow = Fn.makeWindow("InventoryWindow", UDim2.fromScale(0.84, 0.77))
+local fitWindow = Fn.makeWindow("FitWindow", UDim2.fromScale(0.84, 0.77))
+local phoneWindow = Fn.create("Frame", {
 	Name = "PhoneWindow",
 	BackgroundColor3 = Theme.Surface,
-		Size = UDim2.fromOffset(414, 660),
+	Size = UDim2.fromOffset(414, 660),
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, 740),
 	ClipsDescendants = false,
@@ -1003,10 +1013,10 @@ local phoneWindow = create("Frame", {
 	ZIndex = 10,
 	Parent = screenGui,
 }) :: Frame
-addCorner(phoneWindow, 38)
-addStroke(phoneWindow, Theme.Paper, 4)
+Fn.addCorner(phoneWindow, 38)
+Fn.addStroke(phoneWindow, Theme.Paper, 4)
 
-local phoneScreen = create("Frame", {
+local phoneScreen = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Background,
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, -16, 1, -16),
@@ -1015,9 +1025,9 @@ local phoneScreen = create("Frame", {
 	ZIndex = 11,
 	Parent = phoneWindow,
 }) :: Frame
-addCorner(phoneScreen, 31)
+Fn.addCorner(phoneScreen, 31)
 
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(58, 22),
 	Position = UDim2.fromOffset(23, 9),
@@ -1029,7 +1039,7 @@ create("TextLabel", {
 	ZIndex = 20,
 	Parent = phoneScreen,
 })
-local dynamicIsland = create("Frame", {
+local dynamicIsland = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Paper,
 	Size = UDim2.fromOffset(106, 27),
 	AnchorPoint = Vector2.new(0.5, 0),
@@ -1037,8 +1047,8 @@ local dynamicIsland = create("Frame", {
 	ZIndex = 20,
 	Parent = phoneScreen,
 }) :: Frame
-addCorner(dynamicIsland, 15)
-create("Frame", {
+Fn.addCorner(dynamicIsland, 15)
+Fn.create("Frame", {
 	BackgroundColor3 = Theme.Lime,
 	Size = UDim2.fromOffset(8, 8),
 	AnchorPoint = Vector2.new(1, 0.5),
@@ -1046,7 +1056,7 @@ create("Frame", {
 	ZIndex = 21,
 	Parent = dynamicIsland,
 })
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(46, 22),
 	AnchorPoint = Vector2.new(1, 0),
@@ -1059,7 +1069,7 @@ create("TextLabel", {
 	ZIndex = 20,
 	Parent = phoneScreen,
 })
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(32, 22),
 	AnchorPoint = Vector2.new(1, 0),
@@ -1072,7 +1082,7 @@ create("TextLabel", {
 	ZIndex = 20,
 	Parent = phoneScreen,
 })
-local battery = create("Frame", {
+local battery = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(18, 9),
 	AnchorPoint = Vector2.new(1, 0),
@@ -1080,11 +1090,11 @@ local battery = create("Frame", {
 	ZIndex = 21,
 	Parent = phoneScreen,
 }) :: Frame
-addCorner(battery, 3)
-addStroke(battery, Theme.Paper, 1)
+Fn.addCorner(battery, 3)
+Fn.addStroke(battery, Theme.Paper, 1)
 
-local function makePhoneSideButton(position: UDim2, size: UDim2)
-	local sideButton = create("Frame", {
+function Fn.makePhoneSideButton(position: UDim2, size: UDim2)
+	local sideButton = Fn.create("Frame", {
 		BackgroundColor3 = Theme.Paper,
 		BorderSizePixel = 0,
 		Position = position,
@@ -1092,14 +1102,14 @@ local function makePhoneSideButton(position: UDim2, size: UDim2)
 		ZIndex = 9,
 		Parent = phoneWindow,
 	})
-	addCorner(sideButton, 3)
+	Fn.addCorner(sideButton, 3)
 	return sideButton
 end
-makePhoneSideButton(UDim2.fromOffset(-4, 128), UDim2.fromOffset(5, 30))
-makePhoneSideButton(UDim2.fromOffset(-4, 187), UDim2.fromOffset(5, 48))
-makePhoneSideButton(UDim2.fromOffset(-4, 243), UDim2.fromOffset(5, 48))
-makePhoneSideButton(UDim2.new(1, -1, 0, 172), UDim2.fromOffset(5, 72))
-local homeBar = create("Frame", {
+Fn.makePhoneSideButton(UDim2.fromOffset(-4, 128), UDim2.fromOffset(5, 30))
+Fn.makePhoneSideButton(UDim2.fromOffset(-4, 187), UDim2.fromOffset(5, 48))
+Fn.makePhoneSideButton(UDim2.fromOffset(-4, 243), UDim2.fromOffset(5, 48))
+Fn.makePhoneSideButton(UDim2.new(1, -1, 0, 172), UDim2.fromOffset(5, 72))
+local homeBar = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Paper,
 	BorderSizePixel = 0,
 	Size = UDim2.fromOffset(132, 5),
@@ -1108,11 +1118,11 @@ local homeBar = create("Frame", {
 	ZIndex = 24,
 	Parent = phoneScreen,
 })
-addCorner(homeBar, 5)
+Fn.addCorner(homeBar, 5)
 
 local activeWindow: Frame? = nil
-local function closeWindows()
-	setCameraActive(false)
+function Fn.closeWindows()
+	Fn.setCameraActive(false)
 	phoneDock.Visible = true
 	local windowToClose = activeWindow
 	activeWindow = nil
@@ -1131,7 +1141,7 @@ local function closeWindows()
 	backdrop.Visible = false
 end
 
-local function openWindow(window: Frame)
+function Fn.openWindow(window: Frame)
 	if activeWindow and activeWindow ~= window then
 		activeWindow.Visible = false
 	end
@@ -1151,17 +1161,17 @@ local function openWindow(window: Frame)
 	end
 end
 
-backdrop.MouseButton1Click:Connect(closeWindows)
+backdrop.MouseButton1Click:Connect(Fn.closeWindows)
 
 -- Inventory window ---------------------------------------------------------
-local inventoryHeader = create("Frame", {
+local inventoryHeader = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 88),
 	ZIndex = 11,
 	Parent = inventoryWindow,
 }) :: Frame
-addPadding(inventoryHeader, 28, 28, 22, 14)
-create("TextLabel", {
+Fn.addPadding(inventoryHeader, 28, 28, 22, 14)
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(0.6, 0, 0, 31),
 	Font = Enum.Font.GothamBlack,
@@ -1172,7 +1182,7 @@ create("TextLabel", {
 	ZIndex = 11,
 	Parent = inventoryHeader,
 })
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(0.6, 0, 0, 20),
 	Position = UDim2.fromOffset(0, 34),
@@ -1184,27 +1194,27 @@ create("TextLabel", {
 	ZIndex = 11,
 	Parent = inventoryHeader,
 })
-local inventoryClose = makeButton(inventoryHeader, "×", UDim2.fromOffset(42, 42), false)
+local inventoryClose = Fn.makeButton(inventoryHeader, "×", UDim2.fromOffset(42, 42), false)
 inventoryClose.AnchorPoint = Vector2.new(1, 0.5)
 inventoryClose.Position = UDim2.new(1, 0, 0.5, 0)
 inventoryClose.ZIndex = 12
-inventoryClose.MouseButton1Click:Connect(closeWindows)
+inventoryClose.MouseButton1Click:Connect(Fn.closeWindows)
 
-local categoryRail = create("Frame", {
+local categoryRail = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Surface,
 	Size = UDim2.new(0, 140, 1, -112),
 	Position = UDim2.fromOffset(24, 88),
 	ZIndex = 11,
 	Parent = inventoryWindow,
 }) :: Frame
-addCorner(categoryRail, 15)
-addPadding(categoryRail, 11, 11, 12, 12)
-local categoryLayout = create("UIListLayout", {
+Fn.addCorner(categoryRail, 15)
+Fn.addPadding(categoryRail, 11, 11, 12, 12)
+local categoryLayout = Fn.create("UIListLayout", {
 	Padding = UDim.new(0, 8),
 	Parent = categoryRail,
 })
 
-local inventoryGrid = create("ScrollingFrame", {
+local inventoryGrid = Fn.create("ScrollingFrame", {
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, -516, 1, -138),
@@ -1216,15 +1226,15 @@ local inventoryGrid = create("ScrollingFrame", {
 	ZIndex = 11,
 	Parent = inventoryWindow,
 }) :: ScrollingFrame
-addPadding(inventoryGrid, 3, 3, 3, 3)
-local gridLayout = create("UIGridLayout", {
+Fn.addPadding(inventoryGrid, 3, 3, 3, 3)
+local gridLayout = Fn.create("UIGridLayout", {
 	CellSize = UDim2.fromOffset(174, 242),
 	CellPadding = UDim2.fromOffset(10, 10),
 	SortOrder = Enum.SortOrder.LayoutOrder,
 	Parent = inventoryGrid,
 })
 
-local inspector = create("Frame", {
+local inspector = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Surface,
 	Size = UDim2.fromOffset(292, 0),
 	Position = UDim2.new(1, -316, 0, 106),
@@ -1233,10 +1243,10 @@ local inspector = create("Frame", {
 	Parent = inventoryWindow,
 }) :: Frame
 inspector.Size = UDim2.new(0, 292, 1, -132)
-addCorner(inspector, 15)
-addPadding(inspector, 17, 17, 17, 17)
+Fn.addCorner(inspector, 15)
+Fn.addPadding(inspector, 17, 17, 17, 17)
 
-local inspectorBrand = create("TextLabel", {
+local inspectorBrand = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 20),
 	Font = Enum.Font.GothamBold,
@@ -1247,7 +1257,7 @@ local inspectorBrand = create("TextLabel", {
 	ZIndex = 12,
 	Parent = inspector,
 }) :: TextLabel
-local inspectorName = create("TextLabel", {
+local inspectorName = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 64),
 	Position = UDim2.fromOffset(0, 26),
@@ -1261,7 +1271,7 @@ local inspectorName = create("TextLabel", {
 	ZIndex = 12,
 	Parent = inspector,
 }) :: TextLabel
-local inspectorMeta = create("TextLabel", {
+local inspectorMeta = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 50),
 	Position = UDim2.fromOffset(0, 98),
@@ -1276,16 +1286,16 @@ local inspectorMeta = create("TextLabel", {
 	Parent = inspector,
 }) :: TextLabel
 
-local equippedPanel = create("Frame", {
+local equippedPanel = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Background,
 	Size = UDim2.new(1, 0, 0, 136),
 	Position = UDim2.fromOffset(0, 165),
 	ZIndex = 12,
 	Parent = inspector,
 }) :: Frame
-addCorner(equippedPanel, 12)
-addPadding(equippedPanel, 11, 11, 10, 10)
-create("TextLabel", {
+Fn.addCorner(equippedPanel, 12)
+Fn.addPadding(equippedPanel, 11, 11, 10, 10)
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 18),
 	Font = Enum.Font.GothamBold,
@@ -1296,33 +1306,33 @@ create("TextLabel", {
 	ZIndex = 13,
 	Parent = equippedPanel,
 })
-local equippedList = create("Frame", {
+local equippedList = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 1, -26),
 	Position = UDim2.fromOffset(0, 26),
 	ZIndex = 13,
 	Parent = equippedPanel,
 }) :: Frame
-create("UIListLayout", {
+Fn.create("UIListLayout", {
 	Padding = UDim.new(0, 4),
 	Parent = equippedList,
 })
 
-local equipButton = makeButton(inspector, "EQUIP TO FIT", UDim2.new(1, 0, 0, 45), true)
+local equipButton = Fn.makeButton(inspector, "EQUIP TO FIT", UDim2.new(1, 0, 0, 45), true)
 equipButton.Position = UDim2.new(0, 0, 1, -101)
 equipButton.ZIndex = 13
-local listButton = makeButton(inspector, "LIST ON FLIPTAG", UDim2.new(1, 0, 0, 43), false)
+local listButton = Fn.makeButton(inspector, "LIST ON FLIPTAG", UDim2.new(1, 0, 0, 43), false)
 listButton.Position = UDim2.new(0, 0, 1, -50)
 listButton.ZIndex = 13
 
 local categoryButtons: { [string]: TextButton } = {}
 for _, category in ipairs(CategoryOrder) do
-	local button = makeButton(categoryRail, CategoryShort[category], UDim2.new(1, 0, 0, 48), false)
+	local button = Fn.makeButton(categoryRail, CategoryShort[category], UDim2.new(1, 0, 0, 48), false)
 	button.ZIndex = 12
 	categoryButtons[category] = button
 end
 
-local function clearChildrenExceptLayout(parent: Instance)
+function Fn.clearChildrenExceptLayout(parent: Instance)
 	for _, child in ipairs(parent:GetChildren()) do
 		if not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") then
 			child:Destroy()
@@ -1330,15 +1340,14 @@ local function clearChildrenExceptLayout(parent: Instance)
 	end
 end
 
-local refreshPhone: () -> ()
 
-local function refreshEquipped()
-	clearChildrenExceptLayout(equippedList)
+function Fn.refreshEquipped()
+	Fn.clearChildrenExceptLayout(equippedList)
 	for _, category in ipairs(CategoryOrder) do
 		local item = equipped[category]
-		create("TextLabel", {
+		Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 18),
+			Size = UDim2.new(1, 0, 0, 18),
 			Font = Enum.Font.GothamMedium,
 			Text = string.format("%s  %s", CategoryShort[category], if item then item.Name else "—"),
 			TextColor3 = if item then Theme.Paper else Theme.Muted,
@@ -1351,12 +1360,12 @@ local function refreshEquipped()
 	end
 end
 
-local function refreshInspector()
+function Fn.refreshInspector()
 	inspectorBrand.Text = string.upper(selectedItem.Brand)
-	inspectorBrand.TextColor3 = rarityColor(selectedItem)
+	inspectorBrand.TextColor3 = Fn.rarityColor(selectedItem)
 	inspectorName.Text = selectedItem.Name
 	local status = if selectedItem.State == "Owned" then "IN WARDROBE" elseif selectedItem.State == "Listed" then "ON DELIVERY" elseif selectedItem.State == "Traded" then "TRADED AWAY" else "SOLD"
-	inspectorMeta.Text = string.format("%s · %s\n%s · $%s", selectedItem.Style, selectedItem.Rarity, status, formatCoins(selectedItem.Value))
+	inspectorMeta.Text = string.format("%s · %s\n%s · $%s", selectedItem.Style, selectedItem.Rarity, status, Fn.formatCoins(selectedItem.Value))
 	if selectedItem.Limited then
 		inspectorMeta.Text ..= "\nLIMITED " .. selectedItem.Limited
 	end
@@ -1367,11 +1376,11 @@ local function refreshInspector()
 	equipButton.TextColor3 = if available then Theme.Background else Theme.Muted
 	listButton.Text = if selectedItem.State == "Owned" then "LIST ON FLIPTAG" elseif selectedItem.State == "Listed" then "DELIVERY IN PROGRESS" elseif selectedItem.State == "Lost" then "PACKAGE LOST" elseif selectedItem.State == "Traded" then "TRADED AWAY" else "ALREADY SOLD"
 	listButton.TextColor3 = if selectedItem.State == "Owned" then Theme.Paper else Theme.Muted
-	refreshEquipped()
+	Fn.refreshEquipped()
 end
 
-local function makeItemCard(item: ClothingItem, order: number)
-	local card = create("TextButton", {
+function Fn.makeItemCard(item: ClothingItem, order: number)
+	local card = Fn.create("TextButton", {
 		AutoButtonColor = false,
 		BackgroundColor3 = if selectedItem == item then Theme.SurfaceLight else Theme.Surface,
 		BorderSizePixel = 0,
@@ -1380,25 +1389,25 @@ local function makeItemCard(item: ClothingItem, order: number)
 		ZIndex = 12,
 		Parent = inventoryGrid,
 	}) :: TextButton
-	addCorner(card, 13)
-	addStroke(card, if selectedItem == item then Theme.Lime else Theme.SurfaceLight, 1)
-	addPadding(card, 12, 12, 11, 11)
+	Fn.addCorner(card, 13)
+	Fn.addStroke(card, if selectedItem == item then Theme.Lime else Theme.SurfaceLight, 1)
+	Fn.addPadding(card, 12, 12, 11, 11)
 
-	createGarmentPreview(card, item, UDim2.fromOffset(12, 11), UDim2.new(1, -24, 0, 92), 13)
-	create("TextLabel", {
+	Fn.createGarmentPreview(card, item, UDim2.fromOffset(12, 11), UDim2.new(1, -24, 0, 92), 13)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 18),
 		Position = UDim2.fromOffset(0, 113),
 		Font = Enum.Font.GothamBold,
 		Text = string.upper(item.Brand),
-		TextColor3 = rarityColor(item),
+		TextColor3 = Fn.rarityColor(item),
 		TextSize = 11,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 41),
 		Position = UDim2.fromOffset(0, 133),
@@ -1412,24 +1421,24 @@ local function makeItemCard(item: ClothingItem, order: number)
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 18),
 		Position = UDim2.fromOffset(0, 178),
 		Font = Enum.Font.GothamMedium,
-		Text = string.format("%s · %s · LUCK +%.1f%%", item.Style, item.Rarity, rarityLuck(item.Rarity)),
+		Text = string.format("%s · %s · LUCK +%.1f%%", item.Style, item.Rarity, Fn.rarityLuck(item.Rarity)),
 		TextColor3 = Theme.Muted,
 		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 22),
 		Position = UDim2.new(0, 0, 1, -27),
 		Font = Enum.Font.GothamBlack,
-		Text = "$" .. formatCoins(item.Value),
+		Text = "$" .. Fn.formatCoins(item.Value),
 		TextColor3 = Theme.Paper,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -1437,7 +1446,7 @@ local function makeItemCard(item: ClothingItem, order: number)
 		Parent = card,
 	})
 	if item.Limited then
-		create("TextLabel", {
+		Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, 0, 0, 18),
 			Position = UDim2.new(0, 0, 1, -47),
@@ -1451,7 +1460,7 @@ local function makeItemCard(item: ClothingItem, order: number)
 		})
 	end
 	if item.State ~= "Owned" then
-		create("TextLabel", {
+		Fn.create("TextLabel", {
 			BackgroundColor3 = Theme.Background,
 			BackgroundTransparency = 0.14,
 			Size = UDim2.new(1, 0, 0, 26),
@@ -1466,11 +1475,11 @@ local function makeItemCard(item: ClothingItem, order: number)
 	end
 	card.MouseButton1Click:Connect(function()
 		selectedItem = item
-		refreshInventory()
+		Fn.refreshInventory()
 	end)
 end
 
-refreshInventory = function()
+Fn.refreshInventory = function()
 	for _, child in ipairs(inventoryGrid:GetChildren()) do
 		if not child:IsA("UIGridLayout") then
 			child:Destroy()
@@ -1485,11 +1494,11 @@ refreshInventory = function()
 	for _, item in ipairs(inventory) do
 		if item.Category == currentCategory then
 			order += 1
-			makeItemCard(item, order)
+			Fn.makeItemCard(item, order)
 		end
 	end
-	refreshInspector()
-	cashLabel.Text = "$" .. formatCoins(coins)
+	Fn.refreshInspector()
+	cashLabel.Text = "$" .. Fn.formatCoins(coins)
 	local luck = 0
 	for _, equippedItem in pairs(equipped) do
 		if equippedItem then
@@ -1512,7 +1521,7 @@ refreshInventory = function()
 	end
 end
 
-local function removeFromWardrobe(item: ClothingItem)
+function Fn.removeFromWardrobe(item: ClothingItem)
 	for index, inventoryItem in ipairs(inventory) do
 		if inventoryItem == item then
 			table.remove(inventory, index)
@@ -1534,29 +1543,29 @@ end
 for category, button in pairs(categoryButtons) do
 	button.MouseButton1Click:Connect(function()
 		currentCategory = category
-		refreshInventory()
+		Fn.refreshInventory()
 	end)
 end
 
 equipButton.MouseButton1Click:Connect(function()
 	if selectedItem.State ~= "Owned" then
-		showToast("THIS ITEM IS NOT IN YOUR WARDROBE", Theme.Danger)
+		Fn.showToast("THIS ITEM IS NOT IN YOUR WARDROBE", Theme.Danger)
 		return
 	end
 	equipped[selectedItem.Category] = selectedItem
-	showToast(selectedItem.Name .. " EQUIPPED", Theme.Lime)
-	refreshInventory()
+	Fn.showToast(selectedItem.Name .. " EQUIPPED", Theme.Lime)
+	Fn.refreshInventory()
 end)
 
 -- Fit builder --------------------------------------------------------------
-local fitHeader = create("Frame", {
+local fitHeader = Fn.create("Frame", {
 	BackgroundColor3 = Theme.LimeDark,
 	Size = UDim2.new(1, 0, 0, 88),
 	ZIndex = 11,
 	Parent = fitWindow,
 }) :: Frame
-addCorner(fitHeader, 20)
-create("Frame", {
+Fn.addCorner(fitHeader, 20)
+Fn.create("Frame", {
 	BackgroundColor3 = Theme.LimeDark,
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, 0, 0, 24),
@@ -1564,7 +1573,7 @@ create("Frame", {
 	ZIndex = 11,
 	Parent = fitHeader,
 })
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(0.7, 0, 0, 31),
 	Position = UDim2.fromOffset(28, 17),
@@ -1576,7 +1585,7 @@ create("TextLabel", {
 	ZIndex = 12,
 	Parent = fitHeader,
 })
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(0.7, 0, 0, 18),
 	Position = UDim2.fromOffset(29, 49),
@@ -1588,13 +1597,13 @@ create("TextLabel", {
 	ZIndex = 12,
 	Parent = fitHeader,
 })
-local fitClose = makeButton(fitHeader, "×", UDim2.fromOffset(44, 44), false)
+local fitClose = Fn.makeButton(fitHeader, "×", UDim2.fromOffset(44, 44), false)
 fitClose.AnchorPoint = Vector2.new(1, 0.5)
 fitClose.Position = UDim2.new(1, -22, 0.5, 0)
 fitClose.ZIndex = 13
-fitClose.MouseButton1Click:Connect(closeWindows)
+fitClose.MouseButton1Click:Connect(Fn.closeWindows)
 
-local fitCloset = create("ScrollingFrame", {
+local fitCloset = Fn.create("ScrollingFrame", {
 	BackgroundColor3 = Theme.Surface,
 	BorderSizePixel = 0,
 	Size = UDim2.fromOffset(324, 0),
@@ -1608,23 +1617,23 @@ local fitCloset = create("ScrollingFrame", {
 	Parent = fitWindow,
 }) :: ScrollingFrame
 fitCloset.Size = UDim2.new(0, 324, 1, -130)
-addCorner(fitCloset, 16)
-addPadding(fitCloset, 12, 12, 13, 13)
-create("UIListLayout", {
+Fn.addCorner(fitCloset, 16)
+Fn.addPadding(fitCloset, 12, 12, 13, 13)
+Fn.create("UIListLayout", {
 	Padding = UDim.new(0, 8),
 	Parent = fitCloset,
 })
 
-local fitStage = create("Frame", {
+local fitStage = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(222, 237, 255),
 	Size = UDim2.new(1, -388, 1, -130),
 	Position = UDim2.fromOffset(364, 106),
 	ZIndex = 11,
 	Parent = fitWindow,
 }) :: Frame
-addCorner(fitStage, 16)
-addStroke(fitStage, Theme.SurfaceLight, 1)
-create("TextLabel", {
+Fn.addCorner(fitStage, 16)
+Fn.addStroke(fitStage, Theme.SurfaceLight, 1)
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 20),
 	Position = UDim2.fromOffset(0, 14),
@@ -1638,7 +1647,7 @@ create("TextLabel", {
 })
 
 -- A clean mannequin keeps the outfit screen readable until character clothing models are added.
-local mannequin = create("Frame", {
+local mannequin = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(154, 350),
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1655,7 +1664,7 @@ local mannequinParts = {
 	{ UDim2.fromOffset(38, 125), UDim2.fromOffset(79, 188), 11 },
 }
 for _, detail in ipairs(mannequinParts) do
-	local bodyPart = create("Frame", {
+	local bodyPart = Fn.create("Frame", {
 		BackgroundColor3 = Theme.Surface,
 		BorderSizePixel = 0,
 		Size = detail[1],
@@ -1663,7 +1672,7 @@ for _, detail in ipairs(mannequinParts) do
 		ZIndex = 12,
 		Parent = mannequin,
 	})
-	addCorner(bodyPart, detail[3])
+	Fn.addCorner(bodyPart, detail[3])
 end
 
 type FitDropSlot = {
@@ -1683,7 +1692,7 @@ local fitSlotData = {
 }
 
 for _, slotData in ipairs(fitSlotData) do
-	local slot = create("Frame", {
+	local slot = Fn.create("Frame", {
 		BackgroundColor3 = Theme.Surface,
 		BorderSizePixel = 0,
 		Size = slotData.Size,
@@ -1691,9 +1700,9 @@ for _, slotData in ipairs(fitSlotData) do
 		ZIndex = 14,
 		Parent = fitStage,
 	}) :: Frame
-	addCorner(slot, 12)
-	addStroke(slot, Theme.Lime, 1)
-	create("TextLabel", {
+	Fn.addCorner(slot, 12)
+	Fn.addStroke(slot, Theme.Lime, 1)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -16, 0, 16),
 		Position = UDim2.fromOffset(8, 7),
@@ -1705,7 +1714,7 @@ for _, slotData in ipairs(fitSlotData) do
 		ZIndex = 15,
 		Parent = slot,
 	})
-	local itemLabel = create("TextLabel", {
+	local itemLabel = Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -16, 0, 25),
 		Position = UDim2.fromOffset(8, 26),
@@ -1718,7 +1727,7 @@ for _, slotData in ipairs(fitSlotData) do
 		ZIndex = 15,
 		Parent = slot,
 	}) :: TextLabel
-	local itemImage = create("ImageLabel", {
+	local itemImage = Fn.create("ImageLabel", {
 		BackgroundTransparency = 1,
 		Size = if slotData.Category == "Top" then UDim2.fromOffset(110, 48) else UDim2.fromOffset(76, 34),
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -1732,7 +1741,7 @@ for _, slotData in ipairs(fitSlotData) do
 	fitDropSlots[slotData.Category] = { Frame = slot, ItemLabel = itemLabel, ItemImage = itemImage, Category = slotData.Category }
 end
 
-local fitValue = create("TextLabel", {
+local fitValue = Fn.create("TextLabel", {
 	BackgroundColor3 = Theme.LimeDark,
 	Size = UDim2.fromOffset(148, 32),
 	AnchorPoint = Vector2.new(1, 0),
@@ -1744,34 +1753,34 @@ local fitValue = create("TextLabel", {
 	ZIndex = 16,
 	Parent = fitStage,
 }) :: TextLabel
-addCorner(fitValue, 12)
+Fn.addCorner(fitValue, 12)
 
 local draggedItem: ClothingItem? = nil
 local dragGhost: Frame? = nil
 local isDraggingFitItem = false
 
-local function updateDragGhost(position: Vector3)
+function Fn.updateDragGhost(position: Vector3)
 	if dragGhost then
 		dragGhost.Position = UDim2.fromOffset(position.X - 70, position.Y - 40)
 	end
 end
 
-local function beginFitDrag(item: ClothingItem, position: Vector3)
+function Fn.beginFitDrag(item: ClothingItem, position: Vector3)
 	if item.State ~= "Owned" then
-		showToast("ONLY OWNED ITEMS CAN BE WORN", Theme.Danger)
+		Fn.showToast("ONLY OWNED ITEMS CAN BE WORN", Theme.Danger)
 		return
 	end
 	draggedItem = item
 	isDraggingFitItem = true
-	dragGhost = create("Frame", {
+	dragGhost = Fn.create("Frame", {
 		BackgroundColor3 = Theme.LimeDark,
 		Size = UDim2.fromOffset(140, 80),
 		ZIndex = 50,
 		Parent = screenGui,
 	}) :: Frame
-	addCorner(dragGhost, 13)
-	addStroke(dragGhost, Theme.White, 1)
-	create("TextLabel", {
+	Fn.addCorner(dragGhost, 13)
+	Fn.addStroke(dragGhost, Theme.White, 1)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -16, 1, -16),
 		Position = UDim2.fromOffset(8, 8),
@@ -1783,34 +1792,34 @@ local function beginFitDrag(item: ClothingItem, position: Vector3)
 		ZIndex = 51,
 		Parent = dragGhost,
 	})
-	updateDragGhost(position)
+	Fn.updateDragGhost(position)
 end
 
-local function isInside(gui: GuiObject, position: Vector3): boolean
+function Fn.isInside(gui: GuiObject, position: Vector3): boolean
 	local guiPosition = gui.AbsolutePosition
 	local guiSize = gui.AbsoluteSize
 	return position.X >= guiPosition.X and position.X <= guiPosition.X + guiSize.X and position.Y >= guiPosition.Y and position.Y <= guiPosition.Y + guiSize.Y
 end
 
-local function endFitDrag(position: Vector3)
+function Fn.endFitDrag(position: Vector3)
 	if not isDraggingFitItem or not draggedItem then
 		return
 	end
 	local dropped = false
 	for category, slot in pairs(fitDropSlots) do
-		if isInside(slot.Frame, position) then
+		if Fn.isInside(slot.Frame, position) then
 			dropped = true
 			if category == draggedItem.Category then
 				equipped[category] = draggedItem
-				showToast(draggedItem.Name .. " ADDED TO YOUR FIT", Theme.Lime)
+				Fn.showToast(draggedItem.Name .. " ADDED TO YOUR FIT", Theme.Lime)
 			else
-				showToast("DROP " .. string.upper(draggedItem.Category) .. " INTO ITS OWN SLOT", Theme.Danger)
+				Fn.showToast("DROP " .. string.upper(draggedItem.Category) .. " INTO ITS OWN SLOT", Theme.Danger)
 			end
 			break
 		end
 	end
 	if not dropped then
-		showToast("DROP THE ITEM ON A FIT SLOT", Theme.Danger)
+		Fn.showToast("DROP THE ITEM ON A FIT SLOT", Theme.Danger)
 	end
 	if dragGhost then
 		dragGhost:Destroy()
@@ -1818,12 +1827,12 @@ local function endFitDrag(position: Vector3)
 	dragGhost = nil
 	draggedItem = nil
 	isDraggingFitItem = false
-	refreshFit()
-	refreshInventory()
+	Fn.refreshFit()
+	Fn.refreshInventory()
 end
 
-local function makeFitWardrobeCard(item: ClothingItem)
-	local card = create("TextButton", {
+function Fn.makeFitWardrobeCard(item: ClothingItem)
+	local card = Fn.create("TextButton", {
 		AutoButtonColor = false,
 		BackgroundColor3 = Theme.SurfaceLight,
 		BorderSizePixel = 0,
@@ -1832,21 +1841,21 @@ local function makeFitWardrobeCard(item: ClothingItem)
 		ZIndex = 12,
 		Parent = fitCloset,
 	}) :: TextButton
-	addCorner(card, 12)
-	createGarmentPreview(card, item, UDim2.fromOffset(8, 8), UDim2.fromOffset(80, 72), 13)
-	create("TextLabel", {
+	Fn.addCorner(card, 12)
+	Fn.createGarmentPreview(card, item, UDim2.fromOffset(8, 8), UDim2.fromOffset(80, 72), 13)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -108, 0, 16),
 		Position = UDim2.fromOffset(98, 12),
 		Font = Enum.Font.GothamBold,
 		Text = string.upper(item.Brand),
-		TextColor3 = rarityColor(item),
+		TextColor3 = Fn.rarityColor(item),
 		TextSize = 10,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -108, 0, 32),
 		Position = UDim2.fromOffset(98, 29),
@@ -1860,12 +1869,12 @@ local function makeFitWardrobeCard(item: ClothingItem)
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -108, 0, 15),
 		Position = UDim2.fromOffset(98, 62),
 		Font = Enum.Font.GothamMedium,
-		Text = string.format("DRAG TO %s · LUCK +%.1f%%", string.upper(item.Category), rarityLuck(item.Rarity)),
+		Text = string.format("DRAG TO %s · LUCK +%.1f%%", string.upper(item.Category), Fn.rarityLuck(item.Rarity)),
 		TextColor3 = Theme.Muted,
 		TextSize = 9,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -1874,16 +1883,16 @@ local function makeFitWardrobeCard(item: ClothingItem)
 	})
 	card.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			beginFitDrag(item, input.Position)
+			Fn.beginFitDrag(item, input.Position)
 		end
 	end)
 end
 
-refreshFit = function()
-	clearChildrenExceptLayout(fitCloset)
+Fn.refreshFit = function()
+	Fn.clearChildrenExceptLayout(fitCloset)
 	for _, item in ipairs(inventory) do
 		if item.State == "Owned" then
-			makeFitWardrobeCard(item)
+			Fn.makeFitWardrobeCard(item)
 		end
 	end
 	local value = 0
@@ -1891,7 +1900,7 @@ refreshFit = function()
 		local item = equipped[category]
 		if item then
 			slot.ItemLabel.Text = item.Name
-			slot.ItemLabel.TextColor3 = rarityColor(item)
+			slot.ItemLabel.TextColor3 = Fn.rarityColor(item)
 			if item.Image and string.match(item.Image, "^rbxassetid://%d+$") then
 				slot.ItemImage.Image = item.Image
 				slot.ItemImage.Visible = true
@@ -1914,48 +1923,48 @@ refreshFit = function()
 			slot.ItemImage.Visible = false
 			slot.ItemLabel.Position = UDim2.fromOffset(8, 26)
 			slot.ItemLabel.Size = UDim2.new(1, -16, 0, 25)
-		slot.ItemLabel.TextSize = 10
+			slot.ItemLabel.TextSize = 10
 			slot.Frame.BackgroundColor3 = Theme.Surface
 		end
 	end
-	fitValue.Text = "FIT VALUE  $" .. formatCoins(value)
+	fitValue.Text = "FIT VALUE  $" .. Fn.formatCoins(value)
 end
 
 fitButton.MouseButton1Click:Connect(function()
-	openWindow(fitWindow)
-	refreshFit()
+	Fn.openWindow(fitWindow)
+	Fn.refreshFit()
 end)
 
 UserInputService.InputChanged:Connect(function(input)
 	if isDraggingFitItem and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		updateDragGhost(input.Position)
+		Fn.updateDragGhost(input.Position)
 	end
 	if cameraActive and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 		cameraYaw = math.clamp(cameraYaw + input.Delta.X * 0.004, -1.25, 1.25)
 		cameraPitch = math.clamp(cameraPitch - input.Delta.Y * 0.004, -0.42, 0.42)
-		updateCameraView()
+		Fn.updateCameraView()
 	elseif cameraActive and input.UserInputType == Enum.UserInputType.MouseWheel then
 		cameraDistance = math.clamp(cameraDistance - input.Position.Z * 0.45, 4, 10)
-		updateCameraView()
+		Fn.updateCameraView()
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
 	if isDraggingFitItem and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-		endFitDrag(input.Position)
+		Fn.endFitDrag(input.Position)
 	end
 end)
 
 -- Phone window -------------------------------------------------------------
-local phoneTop = create("Frame", {
+local phoneTop = Fn.create("Frame", {
 	BackgroundColor3 = Theme.LimeDark,
 	Size = UDim2.new(1, 0, 0, 50),
 	Position = UDim2.fromOffset(0, 38),
 	ZIndex = 11,
 	Parent = phoneScreen,
 }) :: Frame
-addCorner(phoneTop, 20)
-local phoneTopBottom = create("Frame", {
+Fn.addCorner(phoneTop, 20)
+local phoneTopBottom = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, 0, 0, 12),
@@ -1963,7 +1972,7 @@ local phoneTopBottom = create("Frame", {
 	ZIndex = 11,
 	Parent = phoneTop,
 }) :: Frame
-local phoneTitle = create("TextLabel", {
+local phoneTitle = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -86, 0, 24),
 	Position = UDim2.fromOffset(18, 10),
@@ -1975,7 +1984,7 @@ local phoneTitle = create("TextLabel", {
 	ZIndex = 12,
 	Parent = phoneTop,
 }) :: TextLabel
-local phoneSubtitle = create("TextLabel", {
+local phoneSubtitle = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -86, 0, 12),
 	Position = UDim2.fromOffset(18, 30),
@@ -1987,7 +1996,7 @@ local phoneSubtitle = create("TextLabel", {
 	ZIndex = 12,
 	Parent = phoneTop,
 }) :: TextLabel
-local phoneClose = makeButton(phoneTop, "×", UDim2.fromOffset(34, 34), false)
+local phoneClose = Fn.makeButton(phoneTop, "×", UDim2.fromOffset(34, 34), false)
 phoneClose.AnchorPoint = Vector2.new(1, 0.5)
 phoneClose.Position = UDim2.new(1, -10, 0.5, 0)
 phoneClose.ZIndex = 13
@@ -1998,45 +2007,45 @@ phoneClose.AutoButtonColor = false
 phoneClose.MouseButton1Click:Connect(function()
 	-- Inside an app, X returns to the phone desktop instead of closing the phone.
 	if currentPhoneApp ~= "HOME" then
-		setCameraActive(false)
+		Fn.setCameraActive(false)
 		currentPhoneApp = "HOME"
 		currentSocialTab = "FYP"
 		currentPhoneTab = "LISTINGS"
 		phoneWindow.Visible = true
 		backdrop.Visible = true
-		refreshPhone()
+		Fn.refreshPhone()
 	else
-		closeWindows()
+		Fn.closeWindows()
 	end
 end)
 
-local phoneTabs = create("Frame", {
+local phoneTabs = Fn.create("Frame", {
 	BackgroundColor3 = Theme.Background,
 	Size = UDim2.new(1, 0, 0, 52),
 	Position = UDim2.fromOffset(0, 88),
 	ZIndex = 11,
 	Parent = phoneScreen,
 }) :: Frame
-addPadding(phoneTabs, 18, 18, 8, 8)
-create("UIListLayout", {
+Fn.addPadding(phoneTabs, 18, 18, 8, 8)
+Fn.create("UIListLayout", {
 	FillDirection = Enum.FillDirection.Horizontal,
 	Padding = UDim.new(0, 6),
 	Parent = phoneTabs,
 })
 local phoneTabButtons: { [string]: TextButton } = {}
 for _, tab in ipairs({ "LISTINGS", "DELIVERIES", "UPGRADES" }) do
-	local button = makeButton(phoneTabs, tab, UDim2.new(1 / 3, -5, 1, 0), false)
+	local button = Fn.makeButton(phoneTabs, tab, UDim2.new(1 / 3, -5, 1, 0), false)
 	button.ZIndex = 12
 	phoneTabButtons[tab] = button
 end
 for _, tab in ipairs({ "FYP", "PROFILE", "CAMERA" }) do
-	local button = makeButton(phoneTabs, tab, UDim2.new(1 / 4, -5, 1, 0), false)
+	local button = Fn.makeButton(phoneTabs, tab, UDim2.new(1 / 4, -5, 1, 0), false)
 	button.ZIndex = 12
 	button.Visible = false
 	phoneTabButtons[tab] = button
 end
 
-local phoneContent = create("ScrollingFrame", {
+local phoneContent = Fn.create("ScrollingFrame", {
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, -36, 1, -166),
@@ -2048,7 +2057,7 @@ local phoneContent = create("ScrollingFrame", {
 	ZIndex = 11,
 	Parent = phoneScreen,
 }) :: ScrollingFrame
-create("UIListLayout", {
+Fn.create("UIListLayout", {
 	Padding = UDim.new(0, 9),
 	Parent = phoneContent,
 })
@@ -2056,7 +2065,7 @@ create("UIListLayout", {
 -- REAL CAMERA OVERLAY -------------------------------------------------------
 -- The 3D world remains visible behind this transparent camera UI. The
 -- camera itself is controlled through Workspace.CurrentCamera (Scriptable).
-cameraOverlay = create("Frame", {
+cameraOverlay = Fn.create("Frame", {
 	Name = "RoGramCameraOverlay",
 	BackgroundTransparency = 1,
 	Size = UDim2.fromScale(1, 1),
@@ -2068,7 +2077,7 @@ cameraOverlay = create("Frame", {
 -- Portrait camera frame: the live camera and final photo are composed inside a
 -- 9:16 phone-shaped area. The dark mask outside it makes the capture boundary
 -- obvious and also lets CaptureScreenshot keep only the central phone area.
-local cameraCaptureMask = create("Frame", {
+local cameraCaptureMask = Fn.create("Frame", {
 	Name = "CameraCaptureMask",
 	BackgroundTransparency = 1,
 	Size = UDim2.fromScale(1, 1),
@@ -2077,28 +2086,28 @@ local cameraCaptureMask = create("Frame", {
 	Parent = cameraOverlay,
 }) :: Frame
 
-local cameraMaskTop = create("Frame", {
+local cameraMaskTop = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(225, 235, 246),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	ZIndex = 80,
 	Parent = cameraCaptureMask,
 }) :: Frame
-local cameraMaskBottom = create("Frame", {
+local cameraMaskBottom = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(225, 235, 246),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	ZIndex = 80,
 	Parent = cameraCaptureMask,
 }) :: Frame
-local cameraMaskLeft = create("Frame", {
+local cameraMaskLeft = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(225, 235, 246),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	ZIndex = 80,
 	Parent = cameraCaptureMask,
 }) :: Frame
-local cameraMaskRight = create("Frame", {
+local cameraMaskRight = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(225, 235, 246),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
@@ -2106,7 +2115,7 @@ local cameraMaskRight = create("Frame", {
 	Parent = cameraCaptureMask,
 }) :: Frame
 
-local cameraFrameGuide = create("Frame", {
+local cameraFrameGuide = Fn.create("Frame", {
 	Name = "PhoneCameraFrame",
 	BackgroundTransparency = 1,
 	Size = UDim2.fromScale(1, 1),
@@ -2115,15 +2124,15 @@ local cameraFrameGuide = create("Frame", {
 	ZIndex = 89,
 	Parent = cameraOverlay,
 }) :: Frame
-create("UIAspectRatioConstraint", {
+Fn.create("UIAspectRatioConstraint", {
 	AspectRatio = 9 / 16,
 	DominantAxis = Enum.DominantAxis.Height,
 	Parent = cameraFrameGuide,
 })
-addStroke(cameraFrameGuide, SocialTheme.Text, 5, 0.02)
-addCorner(cameraFrameGuide, 24)
+Fn.addStroke(cameraFrameGuide, SocialTheme.Text, 5, 0.02)
+Fn.addCorner(cameraFrameGuide, 24)
 
-local cameraFrameInner = create("Frame", {
+local cameraFrameInner = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -10, 1, -10),
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2131,10 +2140,10 @@ local cameraFrameInner = create("Frame", {
 	ZIndex = 90,
 	Parent = cameraFrameGuide,
 }) :: Frame
-addCorner(cameraFrameInner, 20)
-addStroke(cameraFrameInner, SocialTheme.Purple, 2, 0.08)
+Fn.addCorner(cameraFrameInner, 20)
+Fn.addStroke(cameraFrameInner, SocialTheme.Purple, 2, 0.08)
 
-local cameraFrameTopGlow = create("Frame", {
+local cameraFrameTopGlow = Fn.create("Frame", {
 	BackgroundColor3 = SocialTheme.Purple,
 	BackgroundTransparency = 0.0,
 	BorderSizePixel = 0,
@@ -2144,9 +2153,9 @@ local cameraFrameTopGlow = create("Frame", {
 	ZIndex = 90,
 	Parent = cameraFrameGuide,
 }) :: Frame
-addCorner(cameraFrameTopGlow, 2)
+Fn.addCorner(cameraFrameTopGlow, 2)
 
-local cameraTopBar = create("Frame", {
+local cameraTopBar = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(7, 6, 12),
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 68),
@@ -2155,7 +2164,7 @@ local cameraTopBar = create("Frame", {
 	Parent = cameraFrameGuide,
 }) :: Frame
 
-local cameraClose = create("TextButton", {
+local cameraClose = Fn.create("TextButton", {
 	AutoButtonColor = false,
 	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 	Size = UDim2.fromOffset(44, 44),
@@ -2168,9 +2177,9 @@ local cameraClose = create("TextButton", {
 	ZIndex = 83,
 	Parent = cameraTopBar,
 }) :: TextButton
-addCorner(cameraClose, 14)
+Fn.addCorner(cameraClose, 14)
 
-local cameraBottomBar = create("Frame", {
+local cameraBottomBar = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(7, 6, 12),
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 150),
@@ -2180,7 +2189,7 @@ local cameraBottomBar = create("Frame", {
 	Parent = cameraFrameGuide,
 }) :: Frame
 
-cameraHud = create("Frame", {
+cameraHud = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, 0, 0, 42),
 	Position = UDim2.fromOffset(0, 58),
@@ -2188,17 +2197,17 @@ cameraHud = create("Frame", {
 	Parent = cameraBottomBar,
 }) :: Frame
 
-local cameraModeButton = makeButton(cameraHud, "FRONT", UDim2.fromOffset(76, 42), true)
+local cameraModeButton = Fn.makeButton(cameraHud, "FRONT", UDim2.fromOffset(76, 42), true)
 cameraModeButton.Position = UDim2.new(0.5, -157, 0, 0)
 cameraModeButton.BackgroundColor3 = SocialTheme.Purple
 cameraModeButton.TextColor3 = SocialTheme.Text
 cameraModeButton.ZIndex = 83
 
-local cameraZoomOut = makeButton(cameraHud, "−", UDim2.fromOffset(38, 38), false)
+local cameraZoomOut = Fn.makeButton(cameraHud, "−", UDim2.fromOffset(38, 38), false)
 cameraZoomOut.Position = UDim2.new(0.5, 53, 0, 2)
 cameraZoomOut.ZIndex = 83
 
-local cameraZoomLabel = create("TextLabel", {
+local cameraZoomLabel = Fn.create("TextLabel", {
 	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 	BackgroundTransparency = 0.08,
 	Size = UDim2.fromOffset(48, 38),
@@ -2211,13 +2220,13 @@ local cameraZoomLabel = create("TextLabel", {
 	ZIndex = 83,
 	Parent = cameraHud,
 }) :: TextLabel
-addCorner(cameraZoomLabel, 12)
+Fn.addCorner(cameraZoomLabel, 12)
 
-local cameraZoomIn = makeButton(cameraHud, "+", UDim2.fromOffset(38, 38), false)
+local cameraZoomIn = Fn.makeButton(cameraHud, "+", UDim2.fromOffset(38, 38), false)
 cameraZoomIn.Position = UDim2.new(0.5, 147, 0, 2)
 cameraZoomIn.ZIndex = 83
 
-cameraReticle = create("Frame", {
+cameraReticle = Fn.create("Frame", {
 	BackgroundTransparency = 1,
 	Size = UDim2.fromOffset(88, 88),
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2225,10 +2234,10 @@ cameraReticle = create("Frame", {
 	ZIndex = 82,
 	Parent = cameraOverlay,
 }) :: Frame
-addStroke(cameraReticle, SocialTheme.Text, 1, 0.45)
-addCorner(cameraReticle, 44)
+Fn.addStroke(cameraReticle, SocialTheme.Text, 1, 0.45)
+Fn.addCorner(cameraReticle, 44)
 
-local reticleH = create("Frame", {
+local reticleH = Fn.create("Frame", {
 	BackgroundColor3 = SocialTheme.Text,
 	BackgroundTransparency = 0.35,
 	Size = UDim2.fromOffset(1, 28),
@@ -2237,7 +2246,7 @@ local reticleH = create("Frame", {
 	ZIndex = 83,
 	Parent = cameraReticle,
 })
-local reticleV = create("Frame", {
+local reticleV = Fn.create("Frame", {
 	BackgroundColor3 = SocialTheme.Text,
 	BackgroundTransparency = 0.35,
 	Size = UDim2.fromOffset(28, 1),
@@ -2247,7 +2256,7 @@ local reticleV = create("Frame", {
 	Parent = cameraReticle,
 })
 
-local cameraStatus = create("TextLabel", {
+local cameraStatus = Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -48, 0, 1),
 	Position = UDim2.new(0, 24, 0, 58),
@@ -2263,7 +2272,7 @@ local cameraStatus = create("TextLabel", {
 
 cameraCaptionBox = nil
 
-cameraShutter = create("TextButton", {
+cameraShutter = Fn.create("TextButton", {
 	AutoButtonColor = false,
 	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 	Size = UDim2.fromOffset(82, 82),
@@ -2276,10 +2285,10 @@ cameraShutter = create("TextButton", {
 	ZIndex = 84,
 	Parent = cameraBottomBar,
 }) :: TextButton
-addCorner(cameraShutter, 41)
-addStroke(cameraShutter, SocialTheme.Purple, 4)
+Fn.addCorner(cameraShutter, 41)
+Fn.addStroke(cameraShutter, SocialTheme.Purple, 4)
 
-local cameraFlash = create("Frame", {
+local cameraFlash = Fn.create("Frame", {
 	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 	BackgroundTransparency = 1,
 	Size = UDim2.fromScale(1, 1),
@@ -2290,14 +2299,14 @@ local cameraFlash = create("Frame", {
 
 -- Post preview: shown only AFTER the photo is captured. The photo is not posted
 -- until the player presses POST TO RO-GRAM.
-local function closePostPreview()
+function Fn.closePostPreview()
 	pendingPhotoContent = nil
 	pendingPhotoId = nil
 	if postPreviewCaption then postPreviewCaption.Text = "" end
 	if postPreviewModal then postPreviewModal.Visible = false end
 end
 
-postPreviewModal = create("Frame", {
+postPreviewModal = Fn.create("Frame", {
 	Name = "RoGramPostPreview",
 	BackgroundColor3 = Color3.fromRGB(7, 18, 14),
 	BackgroundTransparency = 0.35,
@@ -2308,7 +2317,7 @@ postPreviewModal = create("Frame", {
 	Parent = phoneScreen,
 }) :: Frame
 
-local postPreviewCard = create("Frame", {
+local postPreviewCard = Fn.create("Frame", {
 	BackgroundColor3 = SocialTheme.Surface,
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, -32, 0, 500),
@@ -2317,10 +2326,10 @@ local postPreviewCard = create("Frame", {
 	ZIndex = 301,
 	Parent = postPreviewModal,
 }) :: Frame
-addCorner(postPreviewCard, 22)
-addStroke(postPreviewCard, SocialTheme.Purple, 2, 0.15)
+Fn.addCorner(postPreviewCard, 22)
+Fn.addStroke(postPreviewCard, SocialTheme.Purple, 2, 0.15)
 
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -100, 0, 30),
 	Position = UDim2.fromOffset(18, 12),
@@ -2333,7 +2342,7 @@ create("TextLabel", {
 	Parent = postPreviewCard,
 })
 
-local postPreviewCancel = create("TextButton", {
+local postPreviewCancel = Fn.create("TextButton", {
 	AutoButtonColor = false,
 	BackgroundColor3 = SocialTheme.SurfaceLight,
 	BorderSizePixel = 0,
@@ -2347,9 +2356,9 @@ local postPreviewCancel = create("TextButton", {
 	ZIndex = 303,
 	Parent = postPreviewCard,
 }) :: TextButton
-addCorner(postPreviewCancel, 17)
+Fn.addCorner(postPreviewCancel, 17)
 
-postPreviewImage = create("ImageLabel", {
+postPreviewImage = Fn.create("ImageLabel", {
 	BackgroundColor3 = SocialTheme.SurfaceLight,
 	BorderSizePixel = 0,
 	Size = UDim2.new(1, -28, 0, 230),
@@ -2359,9 +2368,9 @@ postPreviewImage = create("ImageLabel", {
 	ZIndex = 302,
 	Parent = postPreviewCard,
 }) :: ImageLabel
-addCorner(postPreviewImage, 16)
+Fn.addCorner(postPreviewImage, 16)
 
-create("TextLabel", {
+Fn.create("TextLabel", {
 	BackgroundTransparency = 1,
 	Size = UDim2.new(1, -28, 0, 18),
 	Position = UDim2.fromOffset(14, 292),
@@ -2374,7 +2383,7 @@ create("TextLabel", {
 	Parent = postPreviewCard,
 })
 
-postPreviewCaption = create("TextBox", {
+postPreviewCaption = Fn.create("TextBox", {
 	Name = "PostDescription",
 	BackgroundColor3 = Color3.fromRGB(248, 252, 250),
 	BorderSizePixel = 0,
@@ -2394,10 +2403,10 @@ postPreviewCaption = create("TextBox", {
 	ZIndex = 302,
 	Parent = postPreviewCard,
 }) :: TextBox
-addCorner(postPreviewCaption, 13)
-addPadding(postPreviewCaption, 11, 11, 9, 9)
+Fn.addCorner(postPreviewCaption, 13)
+Fn.addPadding(postPreviewCaption, 11, 11, 9, 9)
 
-local postPreviewDiscard = create("TextButton", {
+local postPreviewDiscard = Fn.create("TextButton", {
 	AutoButtonColor = false,
 	BackgroundColor3 = SocialTheme.SurfaceLight,
 	BorderSizePixel = 0,
@@ -2410,9 +2419,9 @@ local postPreviewDiscard = create("TextButton", {
 	ZIndex = 302,
 	Parent = postPreviewCard,
 }) :: TextButton
-addCorner(postPreviewDiscard, 14)
+Fn.addCorner(postPreviewDiscard, 14)
 
-local postPreviewPost = create("TextButton", {
+local postPreviewPost = Fn.create("TextButton", {
 	AutoButtonColor = false,
 	BackgroundColor3 = SocialTheme.Purple,
 	BorderSizePixel = 0,
@@ -2425,17 +2434,17 @@ local postPreviewPost = create("TextButton", {
 	ZIndex = 302,
 	Parent = postPreviewCard,
 }) :: TextButton
-addCorner(postPreviewPost, 14)
+Fn.addCorner(postPreviewPost, 14)
 
-postPreviewCancel.MouseButton1Click:Connect(closePostPreview)
+postPreviewCancel.MouseButton1Click:Connect(Fn.closePostPreview)
 postPreviewDiscard.MouseButton1Click:Connect(function()
-	closePostPreview()
-	showToast("PHOTO DISCARDED", SocialTheme.Purple)
+	Fn.closePostPreview()
+	Fn.showToast("PHOTO DISCARDED", SocialTheme.Purple)
 end)
 
 postPreviewPost.MouseButton1Click:Connect(function()
 	if not pendingPhotoContent or not pendingPhotoId then
-		closePostPreview()
+		Fn.closePostPreview()
 		return
 	end
 	local caption = ""
@@ -2454,63 +2463,63 @@ postPreviewPost.MouseButton1Click:Connect(function()
 	if photoRemote then
 		photoRemote:FireServer("Post", photoData.PhotoId, photoData.Caption, photoData.Pose, photoData.Likes, photoData.CaptureContent)
 	end
-	closePostPreview()
-	flashCamera()
-	showToast("PHOTO POSTED TO RO-GRAM", SocialTheme.Purple)
+	Fn.closePostPreview()
+	Fn.flashCamera()
+	Fn.showToast("PHOTO POSTED TO RO-GRAM", SocialTheme.Purple)
 	currentSocialTab = "PROFILE"
 	profileName = player.Name
 	currentPhoneApp = "SOCIAL"
 	phoneWindow.Visible = true
 	backdrop.Visible = true
-	refreshPhone()
+	Fn.refreshPhone()
 end)
 
-local function addPhoneLabel(text: string, muted: boolean?)
-	create("TextLabel", {
+function Fn.addPhoneLabel(text: string, muted: boolean?)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 25),
 		Font = Enum.Font.GothamBold,
 		Text = text,
 		TextColor3 = if currentPhoneApp == "SOCIAL"
 			then if muted then SocialTheme.Muted else SocialTheme.Text
-			else if muted then Theme.Muted else Theme.Paper,
-		TextSize = if muted then 10 else 13,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 12,
-		Parent = phoneContent,
+		else if muted then Theme.Muted else Theme.Paper,
+				TextSize = if muted then 10 else 13,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = 12,
+				Parent = phoneContent,
 	})
 end
 
-local function addPhoneCard(item: ClothingItem, actionText: string, action: () -> ())
-	local card = create("Frame", {
+function Fn.addPhoneCard(item: ClothingItem, actionText: string, action: () -> ())
+	local card = Fn.create("Frame", {
 		BackgroundColor3 = if currentPhoneApp == "SOCIAL" then SocialTheme.Surface else Theme.Surface,
 		Size = UDim2.new(1, 0, 0, 100),
 		ZIndex = 12,
 		Parent = phoneContent,
 	}) :: Frame
-	addCorner(card, 13)
-	addPadding(card, 13, 13, 12, 12)
-	local bar = create("Frame", {
-		BackgroundColor3 = rarityColor(item),
+	Fn.addCorner(card, 13)
+	Fn.addPadding(card, 13, 13, 12, 12)
+	local bar = Fn.create("Frame", {
+		BackgroundColor3 = Fn.rarityColor(item),
 		BorderSizePixel = 0,
 		Size = UDim2.fromOffset(4, 58),
 		ZIndex = 13,
 		Parent = card,
 	})
-	addCorner(bar, 4)
-	create("TextLabel", {
+	Fn.addCorner(bar, 4)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -130, 0, 17),
 		Position = UDim2.fromOffset(14, 1),
 		Font = Enum.Font.GothamBold,
 		Text = string.upper(item.Brand),
-		TextColor3 = if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else rarityColor(item),
+		TextColor3 = if currentPhoneApp == "SOCIAL" then SocialTheme.Purple else Fn.rarityColor(item),
 		TextSize = 10,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -130, 0, 35),
 		Position = UDim2.fromOffset(14, 20),
@@ -2524,19 +2533,19 @@ local function addPhoneCard(item: ClothingItem, actionText: string, action: () -
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -130, 0, 18),
 		Position = UDim2.fromOffset(14, 61),
 		Font = Enum.Font.GothamMedium,
-		Text = "$" .. formatCoins(item.Value),
+		Text = "$" .. Fn.formatCoins(item.Value),
 		TextColor3 = if currentPhoneApp == "SOCIAL" then SocialTheme.Muted else Theme.Muted,
 		TextSize = 10,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 13,
 		Parent = card,
 	})
-	local button = makeButton(card, actionText, UDim2.fromOffset(105, 38), actionText == "POST")
+	local button = Fn.makeButton(card, actionText, UDim2.fromOffset(105, 38), actionText == "POST")
 	if currentPhoneApp == "SOCIAL" then
 		button.BackgroundColor3 = SocialTheme.Purple
 		button.TextColor3 = SocialTheme.Text
@@ -2547,7 +2556,7 @@ local function addPhoneCard(item: ClothingItem, actionText: string, action: () -
 	button.MouseButton1Click:Connect(action)
 end
 
-local function socialNames(): { string }
+function Fn.socialNames(): { string }
 	local names = { player.Name }
 	for _, otherPlayer in ipairs(Players:GetPlayers()) do
 		if otherPlayer ~= player then
@@ -2561,19 +2570,19 @@ local function socialNames(): { string }
 	return names
 end
 
-local function socialCard(height: number): Frame
-	local card = create("Frame", {
+function Fn.socialCard(height: number): Frame
+	local card = Fn.create("Frame", {
 		BackgroundColor3 = SocialTheme.Surface,
 		Size = UDim2.new(1, 0, 0, height),
 		ZIndex = 12,
 		Parent = phoneContent,
 	}) :: Frame
-	addCorner(card, 13)
-	addPadding(card, 13, 13, 12, 12)
+	Fn.addCorner(card, 13)
+	Fn.addPadding(card, 13, 13, 12, 12)
 	return card
 end
 
-updateCameraFrame = function()
+Fn.updateCameraFrame = function()
 	if not cameraOverlay or not cameraFrameGuide then
 		return
 	end
@@ -2604,7 +2613,7 @@ updateCameraFrame = function()
 	setRect(cameraMaskRight, frameX + frameWidth, frameY, viewportSize.X - (frameX + frameWidth), frameHeight)
 end
 
-setCameraActive = function(active: boolean)
+Fn.setCameraActive = function(active: boolean)
 	local camera = workspace.CurrentCamera
 	if not camera then
 		return
@@ -2627,8 +2636,8 @@ setCameraActive = function(active: boolean)
 		if cameraCaptureMask then cameraCaptureMask.Visible = true end
 		if cameraFrameGuide then cameraFrameGuide.Visible = true end
 		backdrop.Visible = false
-		updateCameraFrame()
-		updateCameraView()
+		Fn.updateCameraFrame()
+		Fn.updateCameraView()
 	elseif not active and cameraActive then
 		cameraActive = false
 		phoneWindow.Active = true
@@ -2643,7 +2652,7 @@ setCameraActive = function(active: boolean)
 	end
 end
 
-updateCameraView = function()
+Fn.updateCameraView = function()
 	if not cameraActive then return end
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -2673,7 +2682,7 @@ updateCameraView = function()
 	if cameraModeButton then cameraModeButton.Text = cameraMode end
 end
 
-local function flashCamera()
+function Fn.flashCamera()
 	if not cameraFlash then
 		return
 	end
@@ -2688,7 +2697,7 @@ local function flashCamera()
 	end)
 end
 
-local function takeRoGramPhoto()
+function Fn.takeRoGramPhoto()
 	if not cameraActive then
 		return
 	end
@@ -2700,7 +2709,7 @@ local function takeRoGramPhoto()
 	if cameraFrameGuide then cameraFrameGuide.Visible = false end
 	if cameraFlash then cameraFlash.Visible = false end
 	if cameraCaptureMask then cameraCaptureMask.Visible = true end
-	updateCameraFrame()
+	Fn.updateCameraFrame()
 
 	CaptureService:CaptureScreenshot(function(contentId)
 		if cameraTopBar then cameraTopBar.Visible = true end
@@ -2721,55 +2730,55 @@ local function takeRoGramPhoto()
 			if postPreviewCaption then
 				postPreviewCaption.Text = ""
 			end
-			setCameraActive(false)
+			Fn.setCameraActive(false)
 			currentPhoneApp = "SOCIAL"
 			currentSocialTab = "FYP"
 			phoneWindow.Visible = true
 			phoneWindow.Active = true
 			backdrop.Visible = true
-			refreshPhone()
+			Fn.refreshPhone()
 			if postPreviewModal then postPreviewModal.Visible = true end
 		else
-			showToast("CAMERA CAPTURE FAILED", Theme.Danger)
+			Fn.showToast("CAMERA CAPTURE FAILED", Theme.Danger)
 		end
 	end)
 end
 
 cameraClose.MouseButton1Click:Connect(function()
-	setCameraActive(false)
+	Fn.setCameraActive(false)
 	currentPhoneApp = "HOME"
 	currentSocialTab = "FYP"
 	currentPhoneTab = "LISTINGS"
 	phoneWindow.Visible = true
 	phoneDock.Visible = false
 	backdrop.Visible = true
-	refreshPhone()
+	Fn.refreshPhone()
 end)
 
 cameraModeButton.MouseButton1Click:Connect(function()
 	cameraMode = if cameraMode == "SELFIE" then "FRONT" else "SELFIE"
-	updateCameraView()
+	Fn.updateCameraView()
 end)
 
 cameraZoomOut.MouseButton1Click:Connect(function()
 	cameraDistance = math.clamp(cameraDistance + 0.7, 4, 10)
-	updateCameraView()
+	Fn.updateCameraView()
 end)
 
 cameraZoomIn.MouseButton1Click:Connect(function()
 	cameraDistance = math.clamp(cameraDistance - 0.7, 4, 10)
-	updateCameraView()
+	Fn.updateCameraView()
 end)
 
-cameraShutter.MouseButton1Click:Connect(takeRoGramPhoto)
+cameraShutter.MouseButton1Click:Connect(Fn.takeRoGramPhoto)
 
 screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 	if cameraActive then
-		updateCameraFrame()
+		Fn.updateCameraFrame()
 	end
 end)
 
-local function getProfilePlayer(name: string): Player?
+function Fn.getProfilePlayer(name: string): Player?
 	local found = Players:FindFirstChild(name)
 	if found and found:IsA("Player") then
 		return found
@@ -2777,12 +2786,12 @@ local function getProfilePlayer(name: string): Player?
 	return nil
 end
 
-local function getProfileBio(name: string): string
+function Fn.getProfileBio(name: string): string
 	local cached = socialBios[name]
 	if cached ~= nil then
 		return cached
 	end
-	local profilePlayer = getProfilePlayer(name)
+	local profilePlayer = Fn.getProfilePlayer(name)
 	if profilePlayer then
 		local attr = profilePlayer:GetAttribute("SocialBio")
 		if type(attr) == "string" then
@@ -2793,32 +2802,32 @@ local function getProfileBio(name: string): string
 	return "No bio yet."
 end
 
-local function openSocialProfile(name: string)
+function Fn.openSocialProfile(name: string)
 	profileName = name
 	socialSearchQuery = name
 	currentSocialTab = "PROFILE"
 	tradeTarget = nil
-	refreshPhone()
+	Fn.refreshPhone()
 end
 
-local function addSocialPhoto(owner: string, caption: string, pose: string, likes: number, captureContent: string?, photoId: string?)
+function Fn.addSocialPhoto(owner: string, caption: string, pose: string, likes: number, captureContent: string?, photoId: string?)
 	local isOwnPhoto = owner == player.Name and photoId ~= nil
-	local card = socialCard(258)
-	local photo = create("Frame", {
+	local card = Fn.socialCard(258)
+	local photo = Fn.create("Frame", {
 		BackgroundColor3 = SocialTheme.SurfaceLight,
 		Size = UDim2.new(1, 0, 0, 182),
 		ZIndex = 13,
 		Parent = card,
 	}) :: Frame
-	addCorner(photo, 10)
-	create("UIAspectRatioConstraint", {
+	Fn.addCorner(photo, 10)
+	Fn.create("UIAspectRatioConstraint", {
 		AspectRatio = 9 / 16,
 		DominantAxis = Enum.DominantAxis.Width,
 		Parent = photo,
 	})
 
 	if captureContent then
-		local capturedImage = create("ImageLabel", {
+		local capturedImage = Fn.create("ImageLabel", {
 			BackgroundColor3 = SocialTheme.SurfaceLight,
 			BackgroundTransparency = 0,
 			Image = captureContent,
@@ -2827,9 +2836,9 @@ local function addSocialPhoto(owner: string, caption: string, pose: string, like
 			ZIndex = 13,
 			Parent = photo,
 		}) :: ImageLabel
-		addCorner(capturedImage, 10)
+		Fn.addCorner(capturedImage, 10)
 	else
-		create("TextLabel", {
+		Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
 			Text = "RO-GRAM\nPHONE PHOTO",
@@ -2842,7 +2851,7 @@ local function addSocialPhoto(owner: string, caption: string, pose: string, like
 		})
 	end
 
-	local ownerButton = create("TextButton", {
+	local ownerButton = Fn.create("TextButton", {
 		AutoButtonColor = false,
 		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 		BackgroundTransparency = 0,
@@ -2856,13 +2865,13 @@ local function addSocialPhoto(owner: string, caption: string, pose: string, like
 		ZIndex = 15,
 		Parent = photo,
 	}) :: TextButton
-	addCorner(ownerButton, 9)
-	addPadding(ownerButton, 10, 10, 0, 0)
+	Fn.addCorner(ownerButton, 9)
+	Fn.addPadding(ownerButton, 10, 10, 0, 0)
 	ownerButton.MouseButton1Click:Connect(function()
-		openSocialProfile(owner)
+		Fn.openSocialProfile(owner)
 	end)
 
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -20, 0, 19),
 		Position = UDim2.fromOffset(10, 148),
@@ -2874,7 +2883,7 @@ local function addSocialPhoto(owner: string, caption: string, pose: string, like
 		ZIndex = 15,
 		Parent = card,
 	})
-	local captionLabel = create("TextLabel", {
+	local captionLabel = Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -100, 0, 26),
 		Position = UDim2.fromOffset(0, 177),
@@ -2888,7 +2897,7 @@ local function addSocialPhoto(owner: string, caption: string, pose: string, like
 		Parent = card,
 	})
 	if isOwnPhoto then
-		local deleteButton = makeButton(card, "DELETE", UDim2.fromOffset(76, 28), false)
+		local deleteButton = Fn.makeButton(card, "DELETE", UDim2.fromOffset(76, 28), false)
 		deleteButton.AnchorPoint = Vector2.new(1, 0)
 		deleteButton.Position = UDim2.new(1, 0, 0, 175)
 		deleteButton.BackgroundColor3 = SocialTheme.SurfaceLight
@@ -2904,15 +2913,15 @@ local function addSocialPhoto(owner: string, caption: string, pose: string, like
 			if photoRemote then
 				photoRemote:FireServer("Delete", photoId)
 			end
-			showToast("PHOTO DELETED", SocialTheme.Purple)
-			refreshPhone()
+			Fn.showToast("PHOTO DELETED", SocialTheme.Purple)
+			Fn.refreshPhone()
 		end)
 	end
 end
 
-local function makeSocialButton(parent: Instance, text: string, size: UDim2, filled: boolean?, compact: boolean?): TextButton
+function Fn.makeSocialButton(parent: Instance, text: string, size: UDim2, filled: boolean?, compact: boolean?): TextButton
 	local isFilled = filled == true
-	local button = create("TextButton", {
+	local button = Fn.create("TextButton", {
 		AutoButtonColor = false,
 		BackgroundColor3 = if isFilled then SocialTheme.Purple else SocialTheme.Surface,
 		Size = size,
@@ -2922,8 +2931,8 @@ local function makeSocialButton(parent: Instance, text: string, size: UDim2, fil
 		TextSize = if compact then 10 else 11,
 		Parent = parent,
 	}) :: TextButton
-	addCorner(button, if compact then 18 else 10)
-	addStroke(button, SocialTheme.Purple, if isFilled then 1 else 2, 0.05)
+	Fn.addCorner(button, if compact then 18 else 10)
+	Fn.addStroke(button, SocialTheme.Purple, if isFilled then 1 else 2, 0.05)
 	button.MouseEnter:Connect(function()
 		TweenService:Create(button, TweenInfo.new(0.12), {
 			BackgroundColor3 = if isFilled then SocialTheme.Pink else SocialTheme.SurfaceLight,
@@ -2937,11 +2946,11 @@ local function makeSocialButton(parent: Instance, text: string, size: UDim2, fil
 	return button
 end
 
-local function addSocialProfile(name: string, isOwnProfile: boolean)
-	local profilePlayer = getProfilePlayer(name)
+function Fn.addSocialProfile(name: string, isOwnProfile: boolean)
+	local profilePlayer = Fn.getProfilePlayer(name)
 	local profileUserId = if profilePlayer then profilePlayer.UserId else player.UserId
-	local card = socialCard(if isOwnProfile then 196 else 150)
-	local avatar = create("ImageLabel", {
+	local card = Fn.socialCard(if isOwnProfile then 196 else 150)
+	local avatar = Fn.create("ImageLabel", {
 		BackgroundColor3 = SocialTheme.SurfaceLight,
 		Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(profileUserId) .. "&w=150&h=150",
 		Size = UDim2.fromOffset(66, 66),
@@ -2949,10 +2958,10 @@ local function addSocialProfile(name: string, isOwnProfile: boolean)
 		ZIndex = 14,
 		Parent = card,
 	}) :: ImageLabel
-	addCorner(avatar, 33)
-	addStroke(avatar, SocialTheme.Purple, 2)
+	Fn.addCorner(avatar, 33)
+	Fn.addStroke(avatar, SocialTheme.Purple, 2)
 
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -82, 0, 25),
 		Position = UDim2.fromOffset(78, 0),
@@ -2964,7 +2973,7 @@ local function addSocialProfile(name: string, isOwnProfile: boolean)
 		ZIndex = 13,
 		Parent = card,
 	})
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -82, 0, 21),
 		Position = UDim2.fromOffset(78, 29),
@@ -2976,12 +2985,12 @@ local function addSocialProfile(name: string, isOwnProfile: boolean)
 		ZIndex = 13,
 		Parent = card,
 	})
-	local bioLabel = create("TextLabel", {
+	local bioLabel = Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, if isOwnProfile then 46 else 62),
 		Position = UDim2.fromOffset(0, 76),
 		Font = Enum.Font.GothamMedium,
-		Text = getProfileBio(name),
+		Text = Fn.getProfileBio(name),
 		TextColor3 = SocialTheme.Text,
 		TextSize = 11,
 		TextWrapped = true,
@@ -2992,20 +3001,20 @@ local function addSocialProfile(name: string, isOwnProfile: boolean)
 	})
 
 	if isOwnProfile then
-		local edit = makeSocialButton(card, "EDIT BIO", UDim2.fromOffset(92, 30), false, true)
+		local edit = Fn.makeSocialButton(card, "EDIT BIO", UDim2.fromOffset(92, 30), false, true)
 		edit.AnchorPoint = Vector2.new(1, 1)
 		edit.Position = UDim2.new(1, 0, 1, 0)
 		edit.ZIndex = 15
 		edit.MouseButton1Click:Connect(function()
 			bioLabel.Visible = false
 			edit.Visible = false
-			local box = create("TextBox", {
+			local box = Fn.create("TextBox", {
 				BackgroundColor3 = SocialTheme.SurfaceLight,
 				Size = UDim2.new(1, -106, 0, 48),
 				Position = UDim2.fromOffset(0, 76),
 				ClearTextOnFocus = false,
 				MultiLine = true,
-				Text = getProfileBio(name) == "No bio yet." and "" or getProfileBio(name),
+				Text = Fn.getProfileBio(name) == "No bio yet." and "" or Fn.getProfileBio(name),
 				PlaceholderText = "WRITE SOMETHING ABOUT YOUR STYLE...",
 				TextColor3 = SocialTheme.Text,
 				PlaceholderColor3 = SocialTheme.Muted,
@@ -3015,9 +3024,9 @@ local function addSocialProfile(name: string, isOwnProfile: boolean)
 				ZIndex = 16,
 				Parent = card,
 			}) :: TextBox
-			addCorner(box, 9)
-			addPadding(box, 10, 10, 7, 7)
-			local save = makeSocialButton(card, "SAVE", UDim2.fromOffset(74, 30), true, true)
+			Fn.addCorner(box, 9)
+			Fn.addPadding(box, 10, 10, 7, 7)
+			local save = Fn.makeSocialButton(card, "SAVE", UDim2.fromOffset(74, 30), true, true)
 			save.AnchorPoint = Vector2.new(1, 1)
 			save.Position = UDim2.new(1, 0, 1, 0)
 			save.ZIndex = 16
@@ -3027,56 +3036,56 @@ local function addSocialProfile(name: string, isOwnProfile: boolean)
 				if setBioRemote then
 					setBioRemote:FireServer(text)
 				end
-				showToast("PROFILE BIO SAVED", SocialTheme.Purple)
-				refreshPhone()
+				Fn.showToast("PROFILE BIO SAVED", SocialTheme.Purple)
+				Fn.refreshPhone()
 			end)
 		end)
 	else
-		local action = makeSocialButton(card, if socialFollowers[name] then "✓ FOLLOWING" else "+ FOLLOW", UDim2.fromOffset(108, 32), true, true)
+		local action = Fn.makeSocialButton(card, if socialFollowers[name] then "✓ FOLLOWING" else "+ FOLLOW", UDim2.fromOffset(108, 32), true, true)
 		action.AnchorPoint = Vector2.new(1, 0)
 		action.Position = UDim2.new(1, 0, 0, 4)
 		action.ZIndex = 14
 		action.MouseButton1Click:Connect(function()
 			if socialFollowers[name] then
 				socialFollowers[name] = nil
-				showToast("UNFOLLOWED @" .. name, Theme.Muted)
+				Fn.showToast("UNFOLLOWED @" .. name, Theme.Muted)
 			else
 				socialFollowers[name] = 1
-				showToast("FOLLOWING @" .. name .. "  ·  +$1 / 30s", Theme.Lime)
+				Fn.showToast("FOLLOWING @" .. name .. "  ·  +$1 / 30s", Theme.Lime)
 			end
-			refreshPhone()
+			Fn.refreshPhone()
 		end)
-		local trade = makeSocialButton(card, "↔ TRADE", UDim2.fromOffset(108, 32), false, true)
+		local trade = Fn.makeSocialButton(card, "↔ TRADE", UDim2.fromOffset(108, 32), false, true)
 		trade.AnchorPoint = Vector2.new(1, 0)
 		trade.Position = UDim2.new(1, 0, 0, 42)
 		trade.ZIndex = 14
 		trade.MouseButton1Click:Connect(function()
 			tradeTarget = name
 			if tradeRemote then
-				local targetPlayer = getProfilePlayer(name)
+				local targetPlayer = Fn.getProfilePlayer(name)
 				if targetPlayer then
 					tradeRemote:FireServer("Request", targetPlayer.UserId)
 				end
 			end
-			refreshPhone()
-			showToast("TRADE REQUEST SENT TO @" .. name, SocialTheme.Purple)
+			Fn.refreshPhone()
+			Fn.showToast("TRADE REQUEST SENT TO @" .. name, SocialTheme.Purple)
 		end)
 	end
 end
 
-local function addTradeItemRow(parent: Instance, item: ClothingItem, selected: boolean, actionText: string, callback: () -> ())
-	local row = create("Frame", {
+function Fn.addTradeItemRow(parent: Instance, item: ClothingItem, selected: boolean, actionText: string, callback: () -> ())
+	local row = Fn.create("Frame", {
 		BackgroundColor3 = if selected then SocialTheme.SurfaceLight else SocialTheme.Surface,
 		Size = UDim2.new(1, 0, 0, 56),
 		ZIndex = 13,
 		Parent = parent,
 	}) :: Frame
-	addCorner(row, 9)
-	create("TextLabel", {
+	Fn.addCorner(row, 9)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, -92, 1, 0),
 		Position = UDim2.fromOffset(10, 0),
-		Text = item.Name .. "\n$" .. formatCoins(item.Value),
+		Text = item.Name .. "\n$" .. Fn.formatCoins(item.Value),
 		TextColor3 = SocialTheme.Text,
 		TextSize = 9,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -3084,17 +3093,17 @@ local function addTradeItemRow(parent: Instance, item: ClothingItem, selected: b
 		ZIndex = 14,
 		Parent = row,
 	})
-	local button = makeSocialButton(row, actionText, UDim2.fromOffset(78, 32), selected, true)
+	local button = Fn.makeSocialButton(row, actionText, UDim2.fromOffset(78, 32), selected, true)
 	button.AnchorPoint = Vector2.new(1, 0.5)
 	button.Position = UDim2.new(1, -8, 0.5, 0)
 	button.ZIndex = 15
 	button.MouseButton1Click:Connect(callback)
 end
 
-local function addTradePanel()
-	local card = socialCard(420)
-	addPhoneLabel("TRADE  /  @" .. tostring(tradeTarget or "PLAYER"), false)
-	create("TextLabel", {
+function Fn.addTradePanel()
+	local card = Fn.socialCard(420)
+	Fn.addPhoneLabel("TRADE  /  @" .. tostring(tradeTarget or "PLAYER"), false)
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 20),
 		Position = UDim2.fromOffset(0, 0),
@@ -3105,7 +3114,7 @@ local function addTradePanel()
 		ZIndex = 14,
 		Parent = card,
 	})
-	local list = create("ScrollingFrame", {
+	local list = Fn.create("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, 185),
@@ -3117,11 +3126,11 @@ local function addTradePanel()
 		ZIndex = 13,
 		Parent = card,
 	}) :: ScrollingFrame
-	create("UIListLayout", { Padding = UDim.new(0, 5), Parent = list })
+	Fn.create("UIListLayout", { Padding = UDim.new(0, 5), Parent = list })
 	for _, item in ipairs(inventory) do
 		if item.State == "Owned" then
 			local selected = table.find(tradeMyOffer, item.Id) ~= nil
-			addTradeItemRow(list, item, selected, if selected then "REMOVE" else "OFFER", function()
+			Fn.addTradeItemRow(list, item, selected, if selected then "REMOVE" else "OFFER", function()
 				if selected then
 					table.remove(tradeMyOffer, table.find(tradeMyOffer, item.Id) :: number)
 				else
@@ -3129,11 +3138,11 @@ local function addTradePanel()
 				end
 				tradeMyReady = false
 				if tradeRemote then tradeRemote:FireServer("Offer", tradeMyOffer) end
-				refreshPhone()
+				Fn.refreshPhone()
 			end)
 		end
 	end
-	local their = create("TextLabel", {
+	local their = Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 20),
 		Position = UDim2.fromOffset(0, 225),
@@ -3146,10 +3155,10 @@ local function addTradePanel()
 	})
 	local theirNames = {}
 	for _, id in ipairs(tradeTheirOffer) do
-		local item = findInventoryItem(id)
+		local item = Fn.findInventoryItem(id)
 		if item then table.insert(theirNames, item.Name) end
 	end
-	create("TextLabel", {
+	Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 22),
 		Position = UDim2.fromOffset(0, 247),
@@ -3161,7 +3170,7 @@ local function addTradePanel()
 		ZIndex = 14,
 		Parent = card,
 	})
-	local status = create("TextLabel", {
+	local status = Fn.create("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 42),
 		Position = UDim2.fromOffset(0, 250),
@@ -3173,15 +3182,15 @@ local function addTradePanel()
 		ZIndex = 14,
 		Parent = card,
 	})
-	local ready = makeSocialButton(card, if tradeMyReady then "UNREADY" else "READY", UDim2.fromOffset(98, 36), tradeMyReady, true)
+	local ready = Fn.makeSocialButton(card, if tradeMyReady then "UNREADY" else "READY", UDim2.fromOffset(98, 36), tradeMyReady, true)
 	ready.Position = UDim2.fromOffset(0, 304)
 	ready.ZIndex = 15
 	ready.MouseButton1Click:Connect(function()
 		tradeMyReady = not tradeMyReady
 		if tradeRemote then tradeRemote:FireServer("Ready", tradeMyReady) end
-		refreshPhone()
+		Fn.refreshPhone()
 	end)
-	local cancel = makeSocialButton(card, "CANCEL", UDim2.fromOffset(98, 36), false, true)
+	local cancel = Fn.makeSocialButton(card, "CANCEL", UDim2.fromOffset(98, 36), false, true)
 	cancel.Position = UDim2.fromOffset(108, 304)
 	cancel.ZIndex = 15
 	cancel.MouseButton1Click:Connect(function()
@@ -3193,22 +3202,22 @@ local function addTradePanel()
 		tradeMyReady = false
 		tradeTheirReady = false
 		tradeStatus = "IDLE"
-		refreshPhone()
+		Fn.refreshPhone()
 	end)
 	if tradeMyReady and tradeTheirReady then
-		local accept = makeSocialButton(card, "ACCEPT TRADE", UDim2.new(1, 0, 0, 42), true, true)
+		local accept = Fn.makeSocialButton(card, "ACCEPT TRADE", UDim2.new(1, 0, 0, 42), true, true)
 		accept.Position = UDim2.fromOffset(0, 352)
 		accept.ZIndex = 15
 		accept.MouseButton1Click:Connect(function()
 			if tradeRemote then tradeRemote:FireServer("Accept") end
 			tradeStatus = "CONFIRMING..."
-			refreshPhone()
+			Fn.refreshPhone()
 		end)
 	end
 end
 
-local function refreshSocial()
-	clearChildrenExceptLayout(phoneContent)
+function Fn.refreshSocial()
+	Fn.clearChildrenExceptLayout(phoneContent)
 	for name, button in pairs(phoneTabButtons) do
 		button.Visible = true
 		local selected = name == currentSocialTab
@@ -3222,9 +3231,9 @@ local function refreshSocial()
 		button.TextXAlignment = Enum.TextXAlignment.Center
 		button.TextYAlignment = Enum.TextYAlignment.Center
 		if selected then
-			addStroke(button, SocialTheme.PurpleDark, 1, 0.15)
+			Fn.addStroke(button, SocialTheme.PurpleDark, 1, 0.15)
 		else
-			addStroke(button, SocialTheme.SurfaceLight, 1, 0)
+			Fn.addStroke(button, SocialTheme.SurfaceLight, 1, 0)
 		end
 	end
 	phoneTabButtons.LISTINGS.Visible = false
@@ -3234,13 +3243,13 @@ local function refreshSocial()
 	phoneTabs.BackgroundTransparency = 0
 
 	if currentSocialTab == "FYP" then
-		local searchRow = create("Frame", {
+		local searchRow = Fn.create("Frame", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, 0, 0, 42),
 			ZIndex = 12,
 			Parent = phoneContent,
 		}) :: Frame
-		local search = create("TextBox", {
+		local search = Fn.create("TextBox", {
 			BackgroundColor3 = SocialTheme.Surface,
 			PlaceholderText = "SEARCH AN ACCOUNT",
 			Text = socialSearchQuery,
@@ -3252,9 +3261,9 @@ local function refreshSocial()
 			ZIndex = 12,
 			Parent = searchRow,
 		}) :: TextBox
-		addCorner(search, 11)
-		addPadding(search, 12, 12, 0, 0)
-		local searchButton = makeSocialButton(searchRow, "SEARCH", UDim2.fromOffset(82, 42), true)
+		Fn.addCorner(search, 11)
+		Fn.addPadding(search, 12, 12, 0, 0)
+		local searchButton = Fn.makeSocialButton(searchRow, "SEARCH", UDim2.fromOffset(82, 42), true)
 		searchButton.Position = UDim2.new(1, 0, 0, 0)
 		searchButton.AnchorPoint = Vector2.new(1, 0)
 		searchButton.BackgroundColor3 = SocialTheme.Purple
@@ -3262,48 +3271,48 @@ local function refreshSocial()
 			socialSearchQuery = search.Text
 			profileName = search.Text
 			currentSocialTab = "PROFILE"
-			refreshPhone()
+			Fn.refreshPhone()
 		end)
-		addPhoneLabel("FOR YOU  ·  PHONE FITS", false)
+		Fn.addPhoneLabel("FOR YOU  ·  PHONE FITS", false)
 		if #socialPhotos == 0 then
-			addPhoneLabel("NO POSTS YET", true)
-			addPhoneLabel("Take a photo with CAMERA to make the first post.", false)
+			Fn.addPhoneLabel("NO POSTS YET", true)
+			Fn.addPhoneLabel("Take a photo with CAMERA to make the first post.", false)
 		else
 			for _, photo in ipairs(socialPhotos) do
-				addSocialPhoto(photo.Owner, photo.Caption, photo.Pose, photo.Likes, photo.CaptureContent, photo.PhotoId)
+				Fn.addSocialPhoto(photo.Owner, photo.Caption, photo.Pose, photo.Likes, photo.CaptureContent, photo.PhotoId)
 			end
 		end
 	elseif currentSocialTab == "PROFILE" then
 		local profile = profileName
 		if profile == "" then profile = player.Name end
 		local isOwn = profile == player.Name
-		local targetPlayer = getProfilePlayer(profile)
+		local targetPlayer = Fn.getProfilePlayer(profile)
 		if not isOwn and not targetPlayer then
-			addPhoneLabel("PROFILE NOT FOUND", true)
-			local back = makeSocialButton(phoneContent, "BACK TO FYP", UDim2.new(1, 0, 0, 42), true)
+			Fn.addPhoneLabel("PROFILE NOT FOUND", true)
+			local back = Fn.makeSocialButton(phoneContent, "BACK TO FYP", UDim2.new(1, 0, 0, 42), true)
 			back.ZIndex = 14
 			back.MouseButton1Click:Connect(function()
 				currentSocialTab = "FYP"
-				refreshPhone()
+				Fn.refreshPhone()
 			end)
 			return
 		end
 
-		local back = makeSocialButton(phoneContent, "‹  BACK TO FYP", UDim2.new(1, 0, 0, 36), false)
+		local back = Fn.makeSocialButton(phoneContent, "‹  BACK TO FYP", UDim2.new(1, 0, 0, 36), false)
 		back.BackgroundColor3 = SocialTheme.SurfaceLight
 		back.TextColor3 = SocialTheme.Muted
 		back.ZIndex = 14
 		back.MouseButton1Click:Connect(function()
 			currentSocialTab = "FYP"
 			tradeTarget = nil
-			refreshPhone()
+			Fn.refreshPhone()
 		end)
-		addPhoneLabel("PROFILE  /  @" .. profile, false)
-		addSocialProfile(profile, isOwn)
+		Fn.addPhoneLabel("PROFILE  /  @" .. profile, false)
+		Fn.addSocialProfile(profile, isOwn)
 
 		if tradeIncomingFrom == profile and not tradeSessionActive then
-			local requestCard = socialCard(92)
-			create("TextLabel", {
+			local requestCard = Fn.socialCard(92)
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, -170, 1, 0),
 				Text = "TRADE REQUEST\n@" .. profile .. " wants to trade with you.",
@@ -3315,7 +3324,7 @@ local function refreshSocial()
 				ZIndex = 14,
 				Parent = requestCard,
 			})
-			local accept = makeSocialButton(requestCard, "ACCEPT", UDim2.fromOffset(76, 32), true)
+			local accept = Fn.makeSocialButton(requestCard, "ACCEPT", UDim2.fromOffset(76, 32), true)
 			accept.AnchorPoint = Vector2.new(1, 0.5)
 			accept.Position = UDim2.new(1, -82, 0.5, 0)
 			accept.ZIndex = 15
@@ -3325,16 +3334,16 @@ local function refreshSocial()
 				tradeIncomingFrom = nil
 				tradeStatus = "TRADE OPEN"
 				if tradeRemote then tradeRemote:FireServer("Respond", true) end
-				refreshPhone()
+				Fn.refreshPhone()
 			end)
-			local decline = makeSocialButton(requestCard, "DECLINE", UDim2.fromOffset(76, 32), false)
+			local decline = Fn.makeSocialButton(requestCard, "DECLINE", UDim2.fromOffset(76, 32), false)
 			decline.AnchorPoint = Vector2.new(1, 0.5)
 			decline.Position = UDim2.new(1, 0, 0.5, 0)
 			decline.ZIndex = 15
 			decline.MouseButton1Click:Connect(function()
 				if tradeRemote then tradeRemote:FireServer("Respond", false) end
 				tradeIncomingFrom = nil
-				refreshPhone()
+				Fn.refreshPhone()
 			end)
 		end
 
@@ -3342,31 +3351,31 @@ local function refreshSocial()
 		for _, photo in ipairs(socialPhotos) do
 			if photo.Owner == profile then
 				profilePhotos += 1
-				addSocialPhoto(photo.Owner, photo.Caption, photo.Pose, photo.Likes, photo.CaptureContent, photo.PhotoId)
+				Fn.addSocialPhoto(photo.Owner, photo.Caption, photo.Pose, photo.Likes, photo.CaptureContent, photo.PhotoId)
 			end
 		end
 		if profilePhotos == 0 then
-			addPhoneLabel("NO PHOTOS YET", true)
+			Fn.addPhoneLabel("NO PHOTOS YET", true)
 		end
 
 		if tradeSessionActive and tradeTarget == profile then
-			addTradePanel()
+			Fn.addTradePanel()
 		end
 	elseif currentSocialTab == "CAMERA" then
 		-- Camera is a fixed capture mode: do not animate/slide the phone UI while shooting.
 		phoneDock.Visible = false
 		phoneWindow.Visible = false
 		phoneWindow.Active = false
-		setCameraActive(true)
+		Fn.setCameraActive(true)
 	end
 end
 
-refreshPhone = function()
+Fn.refreshPhone = function()
 	if currentPhoneApp == "HOME" then
-		setCameraActive(false)
+		Fn.setCameraActive(false)
 		phoneWindow.Visible = true
 		backdrop.Visible = true
-		clearChildrenExceptLayout(phoneContent)
+		Fn.clearChildrenExceptLayout(phoneContent)
 		for _, button in pairs(phoneTabButtons) do
 			button.Visible = false
 		end
@@ -3376,7 +3385,7 @@ refreshPhone = function()
 		phoneTitle.Text = "PHONE"
 		phoneSubtitle.Text = "YOUR APPS"
 
-		local homeHeader = create("TextLabel", {
+		local homeHeader = Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, 0, 0, 26),
 			Position = UDim2.fromOffset(0, 4),
@@ -3387,7 +3396,7 @@ refreshPhone = function()
 			ZIndex = 13,
 			Parent = phoneContent,
 		})
-		local welcome = create("TextLabel", {
+		local welcome = Fn.create("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, 0, 0, 50),
 			Position = UDim2.fromOffset(0, 34),
@@ -3400,14 +3409,14 @@ refreshPhone = function()
 			ZIndex = 13,
 			Parent = phoneContent,
 		})
-		local apps = create("Frame", {
+		local apps = Fn.create("Frame", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, 0, 0, 270),
 			Position = UDim2.fromOffset(0, 102),
 			ZIndex = 13,
 			Parent = phoneContent,
 		}) :: Frame
-		local appGrid = create("UIGridLayout", {
+		local appGrid = Fn.create("UIGridLayout", {
 			CellSize = UDim2.fromOffset(128, 128),
 			CellPadding = UDim2.fromOffset(12, 12),
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
@@ -3415,17 +3424,17 @@ refreshPhone = function()
 			Parent = apps,
 		})
 		local function addHomeApp(icon: string, title: string, subtitle: string, accent: Color3, appName: string)
-			local button = create("TextButton", {
-			AutoButtonColor = false,
-			BackgroundColor3 = accent,
-			Size = UDim2.fromOffset(128, 128),
-			Text = "",
-			ZIndex = 14,
-			Parent = apps,
+			local button = Fn.create("TextButton", {
+				AutoButtonColor = false,
+				BackgroundColor3 = accent,
+				Size = UDim2.fromOffset(128, 128),
+				Text = "",
+				ZIndex = 14,
+				Parent = apps,
 			}) :: TextButton
-			addCorner(button, 25)
-			addStroke(button, Color3.fromRGB(255, 255, 255), 1, 0.65)
-			create("TextLabel", {
+			Fn.addCorner(button, 25)
+			Fn.addStroke(button, Color3.fromRGB(255, 255, 255), 1, 0.65)
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, 0, 0, 58),
 				Position = UDim2.fromOffset(0, 16),
@@ -3435,7 +3444,7 @@ refreshPhone = function()
 				ZIndex = 15,
 				Parent = button,
 			})
-			create("TextLabel", {
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, -12, 0, 24),
 				Position = UDim2.fromOffset(6, 72),
@@ -3445,7 +3454,7 @@ refreshPhone = function()
 				ZIndex = 15,
 				Parent = button,
 			})
-			create("TextLabel", {
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, -12, 0, 18),
 				Position = UDim2.fromOffset(6, 96),
@@ -3462,7 +3471,7 @@ refreshPhone = function()
 				else
 					currentPhoneTab = "LISTINGS"
 				end
-				refreshPhone()
+				Fn.refreshPhone()
 			end)
 		end
 		addHomeApp("◎", "RO-GRAM", "PHOTO / SOCIAL", SocialTheme.Purple, "SOCIAL")
@@ -3474,16 +3483,16 @@ refreshPhone = function()
 		if currentSocialTab == "CAMERA" then
 			phoneWindow.Visible = false
 		else
-			setCameraActive(false)
+			Fn.setCameraActive(false)
 			phoneWindow.Visible = true
 			backdrop.Visible = true
 		end
-		refreshSocial()
+		Fn.refreshSocial()
 		return
 	end
-	setCameraActive(false)
+	Fn.setCameraActive(false)
 	phoneWindow.Visible = true
-	clearChildrenExceptLayout(phoneContent)
+	Fn.clearChildrenExceptLayout(phoneContent)
 	for tab, button in pairs(phoneTabButtons) do
 		button.Visible = tab ~= "FYP" and tab ~= "PROFILE" and tab ~= "CAMERA"
 		button.Text = tab
@@ -3493,37 +3502,55 @@ refreshPhone = function()
 	end
 
 	if currentPhoneTab == "LISTINGS" then
-		addPhoneLabel("READY TO POST")
+		Fn.addPhoneLabel("READY TO POST")
 		local posted = 0
 		for _, item in ipairs(inventory) do
 			if item.State == "Owned" then
 				posted += 1
-				addPhoneCard(item, "POST", function()
+				Fn.addPhoneCard(item, "POST", function()
+					-- Max 5 paczek naraz w rękach — resztę trzeba najpierw odłożyć w paczkomacie.
+					if Fn.countPendingShipments() >= 5 then
+						Fn.showToast("HANDS FULL — DROP PACKAGES AT THE PACZKOMAT [E]", Theme.Danger)
+						return
+					end
 					item.State = "Listed"
-					table.insert(shipments, { Item = item, FinishAt = os.clock() + 18 })
-					showToast(item.Name .. " IS ON THE WAY", Theme.Lime)
-					refreshInventory()
-					refreshPhone()
+					-- Dostawa startuje dopiero po odłożeniu paczek w paczkomacie (klawisz E).
+					table.insert(shipments, { Item = item, FinishAt = 0 })
+					-- Hand the player a cardboard box for the sold item (server-side).
+					local thriftRemotes = ReplicatedStorage:FindFirstChild("ThriftRemotes")
+					local boxRemote = thriftRemotes and thriftRemotes:FindFirstChild("FlipTagBox")
+					if boxRemote and boxRemote:IsA("RemoteEvent") then
+						boxRemote:FireServer()
+					end
+					Fn.showToast(item.Name .. " IS ON THE WAY", Theme.Lime)
+					Fn.refreshInventory()
+					Fn.refreshPhone()
 				end)
 			end
 		end
 		if posted == 0 then
-			addPhoneLabel("NO ITEMS READY. FIND MORE PIECES IN A THRIFT STORE.", true)
+			Fn.addPhoneLabel("NO ITEMS READY. FIND MORE PIECES IN A THRIFT STORE.", true)
 		end
 	elseif currentPhoneTab == "DELIVERIES" then
-		addPhoneLabel("ACTIVE SHIPMENTS")
+		Fn.addPhoneLabel("ACTIVE SHIPMENTS")
 		if #shipments == 0 then
-			addPhoneLabel("NOTHING IS ON THE ROAD RIGHT NOW.", true)
+			Fn.addPhoneLabel("NOTHING IS ON THE ROAD RIGHT NOW.", true)
 		end
 		for _, shipment in ipairs(shipments) do
-			local secondsLeft = math.max(0, math.ceil(shipment.FinishAt - os.clock()))
-			addPhoneCard(shipment.Item, string.format("%02ds", secondsLeft), function()
-				showToast("WAIT FOR THE BUYER'S PAYMENT", Theme.Lime)
-			end)
+			if shipment.FinishAt == 0 then
+				Fn.addPhoneCard(shipment.Item, "DROP OFF", function()
+					Fn.showToast("GO TO THE PACZKOMAT AND PRESS E", Theme.Lime)
+				end)
+			else
+				local secondsLeft = math.max(0, math.ceil(shipment.FinishAt - os.clock()))
+				Fn.addPhoneCard(shipment.Item, string.format("%02ds", secondsLeft), function()
+					Fn.showToast("WAIT FOR THE BUYER'S PAYMENT", Theme.Lime)
+				end)
+			end
 		end
 	elseif currentPhoneTab == "UPGRADES" then
-		addPhoneLabel("APP UPGRADES")
-		addPhoneLabel("UPGRADE ANYTIME · EACH UPGRADE MAKES THE NEXT ONE MORE EXPENSIVE", true)
+		Fn.addPhoneLabel("APP UPGRADES")
+		Fn.addPhoneLabel("UPGRADE ANYTIME · EACH UPGRADE MAKES THE NEXT ONE MORE EXPENSIVE", true)
 
 		local upgradeMultiplier = 1.5
 		local upgrades = {
@@ -3536,15 +3563,15 @@ refreshPhone = function()
 			local level = appUpgradeLevels[upgrade.Id] or 0
 			local cost = math.floor(upgrade.BaseCost * (upgradeMultiplier ^ level))
 
-			local row = create("Frame", {
+			local row = Fn.create("Frame", {
 				BackgroundColor3 = Theme.Surface,
 				Size = UDim2.new(1, 0, 0, 84),
 				ZIndex = 12,
 				Parent = phoneContent,
 			}) :: Frame
-			addCorner(row, 13)
+			Fn.addCorner(row, 13)
 
-			create("TextLabel", {
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, -112, 0, 19),
 				Position = UDim2.fromOffset(13, 13),
@@ -3557,7 +3584,7 @@ refreshPhone = function()
 				Parent = row,
 			})
 
-			create("TextLabel", {
+			Fn.create("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.new(1, -112, 0, 18),
 				Position = UDim2.fromOffset(13, 37),
@@ -3570,22 +3597,22 @@ refreshPhone = function()
 				Parent = row,
 			})
 
-			local buy = makeButton(row, "$" .. formatCoins(cost), UDim2.fromOffset(91, 35), coins >= cost)
+			local buy = Fn.makeButton(row, "$" .. Fn.formatCoins(cost), UDim2.fromOffset(91, 35), coins >= cost)
 			buy.AnchorPoint = Vector2.new(1, 0.5)
 			buy.Position = UDim2.new(1, -12, 0.5, 0)
 			buy.ZIndex = 14
 
 			buy.MouseButton1Click:Connect(function()
 				if coins < cost then
-					showToast("NOT ENOUGH CASH", Theme.Danger)
+					Fn.showToast("NOT ENOUGH CASH", Theme.Danger)
 					return
 				end
 
 				coins -= cost
 				appUpgradeLevels[upgrade.Id] = level + 1
-				cashLabel.Text = "$" .. formatCoins(coins)
-				showToast(upgrade.Name .. " UPGRADED TO LV. " .. tostring(level + 1), Theme.Lime)
-				refreshPhone()
+				cashLabel.Text = "$" .. Fn.formatCoins(coins)
+				Fn.showToast(upgrade.Name .. " UPGRADED TO LV. " .. tostring(level + 1), Theme.Lime)
+				Fn.refreshPhone()
 			end)
 		end
 	end
@@ -3600,37 +3627,37 @@ for tab, button in pairs(phoneTabButtons) do
 		else
 			currentPhoneTab = tab
 		end
-		refreshPhone()
+		Fn.refreshPhone()
 	end)
 end
 
 -- Home-screen app launcher is the main way to switch between FLIPTAG and ro-gram.
-local function openPhoneHome()
-	setCameraActive(false)
+function Fn.openPhoneHome()
+	Fn.setCameraActive(false)
 	currentPhoneApp = "HOME"
 	currentSocialTab = "FYP"
 	currentPhoneTab = "LISTINGS"
-	openWindow(phoneWindow)
-	refreshPhone()
+	Fn.openWindow(phoneWindow)
+	Fn.refreshPhone()
 end
 
-phoneDockButton.MouseButton1Click:Connect(openPhoneHome)
+phoneDockButton.MouseButton1Click:Connect(Fn.openPhoneHome)
 
 listButton.MouseButton1Click:Connect(function()
 	if selectedItem.State ~= "Owned" then
-		showToast("THIS ITEM CANNOT BE LISTED", Theme.Danger)
+		Fn.showToast("THIS ITEM CANNOT BE LISTED", Theme.Danger)
 		return
 	end
-	openWindow(phoneWindow)
+	Fn.openWindow(phoneWindow)
 	currentPhoneApp = "FLIPTAG"
 	currentPhoneTab = "LISTINGS"
-	refreshPhone()
-	showToast("POST " .. selectedItem.Name .. " FROM YOUR PHONE", Theme.Lime)
+	Fn.refreshPhone()
+	Fn.showToast("POST " .. selectedItem.Name .. " FROM YOUR PHONE", Theme.Lime)
 end)
 
 inventoryButton.MouseButton1Click:Connect(function()
-	openWindow(inventoryWindow)
-	refreshInventory()
+	Fn.openWindow(inventoryWindow)
+	Fn.refreshInventory()
 end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -3638,15 +3665,15 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		return
 	end
 	if input.KeyCode == Enum.KeyCode.B then
-		openWindow(inventoryWindow)
-		refreshInventory()
+		Fn.openWindow(inventoryWindow)
+		Fn.refreshInventory()
 	elseif input.KeyCode == Enum.KeyCode.F then
-		openWindow(fitWindow)
-		refreshFit()
+		Fn.openWindow(fitWindow)
+		Fn.refreshFit()
 	elseif input.KeyCode == Enum.KeyCode.P then
-		openPhoneHome()
+		Fn.openPhoneHome()
 	elseif input.KeyCode == Enum.KeyCode.Escape then
-		closeWindows()
+		Fn.closeWindows()
 	end
 end)
 
@@ -3654,7 +3681,7 @@ task.spawn(function()
 	while screenGui.Parent do
 		task.wait(0.05)
 		if cameraActive then
-			updateCameraView()
+			Fn.updateCameraView()
 		end
 	end
 end)
@@ -3669,8 +3696,8 @@ task.spawn(function()
 		if followerCount > 0 then
 			local passiveIncome = followerCount
 			coins += passiveIncome
-			cashLabel.Text = "$" .. formatCoins(coins)
-			showToast("SOCIAL INCOME: +$" .. formatCoins(passiveIncome), Theme.Lime)
+			cashLabel.Text = "$" .. Fn.formatCoins(coins)
+			Fn.showToast("SOCIAL INCOME: +$" .. Fn.formatCoins(passiveIncome), Theme.Lime)
 		end
 	end
 end)
@@ -3681,7 +3708,7 @@ task.spawn(function()
 		local paidOut = false
 		for index = #shipments, 1, -1 do
 			local shipment = shipments[index]
-			if os.clock() >= shipment.FinishAt then
+			if shipment.FinishAt > 0 and os.clock() >= shipment.FinishAt then
 				-- Packages can be lost during delivery. The SAFEBOX upgrade lowers the chance.
 				local safeBoxLevel = appUpgradeLevels.SAFEBOX or 0
 				local lostChance = math.max(0.02, 0.10 - (safeBoxLevel * 0.02))
@@ -3691,33 +3718,144 @@ task.spawn(function()
 					shipment.Item.State = "Lost"
 					table.remove(shipments, index)
 					paidOut = true
-						showToast("PACKAGE LOST: NO PAYMENT", Theme.Lime)
+					Fn.showToast("PACKAGE LOST: NO PAYMENT", Theme.Lime)
 				else
 					local soldItem = shipment.Item
 					soldItem.State = "Sold"
 					coins += soldItem.Value
-					removeFromWardrobe(soldItem)
+					Fn.removeFromWardrobe(soldItem)
 					table.remove(shipments, index)
 					paidOut = true
-					showToast("SOLD: +$" .. formatCoins(soldItem.Value), Theme.Lime)
+					Fn.showToast("SOLD: +$" .. Fn.formatCoins(soldItem.Value), Theme.Lime)
 				end
 			end
 		end
 		if paidOut then
-			refreshInventory()
-			refreshFit()
+			Fn.refreshInventory()
+			Fn.refreshFit()
 			if phoneWindow.Visible and currentPhoneTab == "DELIVERIES" then
-				refreshPhone()
+				Fn.refreshPhone()
 			end
 		end
 		if phoneWindow.Visible and currentPhoneTab == "DELIVERIES" then
-			refreshPhone()
+			Fn.refreshPhone()
 		end
 	end
 end)
 
+-- PACZKOMAT (parcel locker) ------------------------------------------------
+-- Paczki wystawione na FLIPTAG NIE startują dostawy, dopóki gracz nie podejdzie
+-- do paczkomatu i nie wciśnie E, żeby je odłożyć. Każdy gracz ma indywidualnie
+-- 5 slotów; paczkomat odświeża się (zwalnia sloty) co 5 minut.
+
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local PACZKOMAT_SLOTS = 5
+local PACZKOMAT_REFRESH = 300 -- sekundy
+
+local paczkomatModel = workspace:FindFirstChild("paczkomat")
+local paczkomatPart = paczkomatModel and paczkomatModel:FindFirstChildWhichIsA("BasePart", true)
+
+if paczkomatPart then
+	local paczkomatSlotsUsed = 0
+	local paczkomatNextRefresh = os.clock() + PACZKOMAT_REFRESH
+
+	-- Billboard nad paczkomatem: zajęte sloty + czas do odświeżenia.
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PaczkomatStatus"
+	billboard.Size = UDim2.fromOffset(230, 96)
+	billboard.StudsOffset = Vector3.new(0, paczkomatPart.Size.Y * 0.5 + 4, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 90
+	billboard.Parent = paczkomatPart
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Size = UDim2.fromScale(1, 1)
+	statusLabel.Font = Enum.Font.GothamBold
+	statusLabel.TextSize = 16
+	statusLabel.TextColor3 = Theme.Paper
+	statusLabel.TextStrokeTransparency = 0.2
+	statusLabel.Parent = billboard
+
+	local function updatePaczkomatStatus()
+		local secondsLeft = math.max(0, math.ceil(paczkomatNextRefresh - os.clock()))
+		statusLabel.Text = string.format(
+			"PACZKOMAT\nSLOTY: %d/%d\nODŚWIEŻENIE: %d:%02d",
+			paczkomatSlotsUsed, PACZKOMAT_SLOTS, math.floor(secondsLeft / 60), secondsLeft % 60
+		)
+	end
+	updatePaczkomatStatus()
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PaczkomatPrompt"
+	prompt.ActionText = "ODŁÓŻ PACZKI"
+	prompt.ObjectText = "PACZKOMAT"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = paczkomatPart
+
+	ProximityPromptService.PromptTriggered:Connect(function(triggeredPrompt)
+		if triggeredPrompt ~= prompt then return end
+
+		local pending = Fn.countPendingShipments()
+		if pending == 0 then
+			Fn.showToast("NO PACKAGES TO DROP OFF", Theme.Danger)
+			return
+		end
+
+		local freeSlots = PACZKOMAT_SLOTS - paczkomatSlotsUsed
+		if freeSlots <= 0 then
+			Fn.showToast("PACZKOMAT FULL — WAIT FOR REFRESH", Theme.Danger)
+			return
+		end
+
+		local deposited = math.min(pending, freeSlots)
+		local started = 0
+		for _, shipment in ipairs(shipments) do
+			if started >= deposited then break end
+			if shipment.FinishAt == 0 then
+				shipment.FinishAt = os.clock() + 18
+				started += 1
+			end
+		end
+		paczkomatSlotsUsed += deposited
+
+		-- Zdejmij karton z rąk (serwer).
+		local thriftRemotes = ReplicatedStorage:FindFirstChild("ThriftRemotes")
+		local boxRemote = thriftRemotes and thriftRemotes:FindFirstChild("FlipTagBox")
+		if boxRemote and boxRemote:IsA("RemoteEvent") then
+			boxRemote:FireServer("deposit")
+		end
+
+		Fn.showToast("DEPOSITED " .. deposited .. " PACKAGE(S) — DELIVERY STARTED", Theme.Lime)
+		updatePaczkomatStatus()
+		if phoneWindow.Visible and currentPhoneTab == "DELIVERIES" then
+			Fn.refreshPhone()
+		end
+	end)
+
+	task.spawn(function()
+		while screenGui.Parent do
+			task.wait(1)
+			if os.clock() >= paczkomatNextRefresh then
+				paczkomatNextRefresh = os.clock() + PACZKOMAT_REFRESH
+				if paczkomatSlotsUsed > 0 then
+					paczkomatSlotsUsed = 0
+					Fn.showToast("PACZKOMAT REFRESHED — SLOTS FREE", Theme.Lime)
+				end
+			end
+			updatePaczkomatStatus()
+		end
+	end)
+else
+	warn("[ThriftUI] Brak modelu 'paczkomat' w Workspace")
+end
+
 -- RO-GRAM / TRADE SERVER SYNC ---------------------------------------------
-local function findInventoryItem(itemId: string): ClothingItem?
+function Fn.findInventoryItem(itemId: string): ClothingItem?
 	for _, item in ipairs(inventory) do
 		if item.Id == itemId then
 			return item
@@ -3726,7 +3864,7 @@ local function findInventoryItem(itemId: string): ClothingItem?
 	return nil
 end
 
-local function registerOwnedInventory()
+function Fn.registerOwnedInventory()
 	if not tradeRemote or not roGramRemotes then
 		return
 	end
@@ -3743,7 +3881,7 @@ local function registerOwnedInventory()
 	register:FireServer(ids)
 end
 
-local function resetTradeState()
+function Fn.resetTradeState()
 	tradeSessionActive = false
 	tradeTarget = nil
 	tradeIncomingFrom = nil
@@ -3769,7 +3907,7 @@ task.spawn(function()
 
 	local register = folder:FindFirstChild("RegisterInventory")
 	if register and register:IsA("RemoteEvent") then
-		registerOwnedInventory()
+		Fn.registerOwnedInventory()
 	end
 
 	if setBioRemote then
@@ -3795,14 +3933,14 @@ task.spawn(function()
 						PhotoId = type(payload.PhotoId) == "string" and payload.PhotoId or nil,
 					})
 				end
-				if phoneWindow.Visible and currentPhoneApp == "SOCIAL" then refreshPhone() end
+				if phoneWindow.Visible and currentPhoneApp == "SOCIAL" then Fn.refreshPhone() end
 			elseif action == "Deleted" and type(ownerName) == "string" and type(payload) == "string" then
 				for index = #socialPhotos, 1, -1 do
 					if socialPhotos[index].Owner == ownerName and socialPhotos[index].PhotoId == payload then
 						table.remove(socialPhotos, index)
 					end
 				end
-				if phoneWindow.Visible and currentPhoneApp == "SOCIAL" then refreshPhone() end
+				if phoneWindow.Visible and currentPhoneApp == "SOCIAL" then Fn.refreshPhone() end
 			end
 		end)
 	end
@@ -3810,17 +3948,17 @@ task.spawn(function()
 	if tradeRemote then
 		tradeRemote.OnClientEvent:Connect(function(action, data, extra)
 			if action == "RequestSent" then
-				showToast("TRADE REQUEST SENT TO @" .. tostring(data), SocialTheme.Purple)
+				Fn.showToast("TRADE REQUEST SENT TO @" .. tostring(data), SocialTheme.Purple)
 			elseif action == "IncomingRequest" then
 				tradeIncomingFrom = tostring(data)
 				profileName = tradeIncomingFrom
 				currentSocialTab = "PROFILE"
-				showToast("TRADE REQUEST FROM @" .. tradeIncomingFrom, SocialTheme.Purple)
-				if phoneWindow.Visible and currentPhoneApp == "SOCIAL" then refreshPhone() end
+				Fn.showToast("TRADE REQUEST FROM @" .. tradeIncomingFrom, SocialTheme.Purple)
+				if phoneWindow.Visible and currentPhoneApp == "SOCIAL" then Fn.refreshPhone() end
 			elseif action == "Declined" then
-				showToast("TRADE DECLINED BY @" .. tostring(data), Theme.Danger)
-				resetTradeState()
-				if phoneWindow.Visible then refreshPhone() end
+				Fn.showToast("TRADE DECLINED BY @" .. tostring(data), Theme.Danger)
+				Fn.resetTradeState()
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "Open" then
 				local info = if type(data) == "table" then data else {}
 				local otherName = if info.A == player.Name then info.B else info.A
@@ -3834,8 +3972,8 @@ task.spawn(function()
 				tradeTheirReady = false
 				tradeStatus = "TRADE OPEN"
 				currentSocialTab = "PROFILE"
-				showToast("TRADE OPEN WITH @" .. tradeTarget, SocialTheme.Purple)
-				if phoneWindow.Visible then refreshPhone() end
+				Fn.showToast("TRADE OPEN WITH @" .. tradeTarget, SocialTheme.Purple)
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "Offer" then
 				if type(data) == "table" then
 					tradeTheirOffer = {}
@@ -3843,7 +3981,7 @@ task.spawn(function()
 				end
 				tradeTheirReady = false
 				tradeStatus = "OFFER UPDATED"
-				if phoneWindow.Visible then refreshPhone() end
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "OfferConfirmed" then
 				tradeMyOffer = {}
 				if type(data) == "table" then
@@ -3851,15 +3989,15 @@ task.spawn(function()
 				end
 				tradeMyReady = false
 				tradeStatus = "OFFER SENT"
-				if phoneWindow.Visible then refreshPhone() end
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "Ready" then
 				tradeTheirReady = data == true
 				tradeStatus = if tradeTheirReady then "OTHER PLAYER READY" else "OTHER PLAYER NOT READY"
-				if phoneWindow.Visible then refreshPhone() end
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "ReadyConfirmed" then
 				tradeMyReady = data == true
 				tradeStatus = if tradeMyReady then "YOU ARE READY" else "EDITING OFFER"
-				if phoneWindow.Visible then refreshPhone() end
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "Completed" then
 				local info = if type(data) == "table" then data else {}
 				local receivedMap = if type(info.Received) == "table" then info.Received else {}
@@ -3869,7 +4007,7 @@ task.spawn(function()
 				if type(given) == "table" then
 					for _, id in ipairs(given) do
 						if type(id) == "string" then
-							local item = findInventoryItem(id)
+							local item = Fn.findInventoryItem(id)
 							if item then
 								item.State = "Traded"
 								if equipped[item.Category] == item then equipped[item.Category] = nil end
@@ -3880,23 +4018,23 @@ task.spawn(function()
 				if type(received) == "table" then
 					for _, id in ipairs(received) do
 						if type(id) == "string" then
-							local item = findInventoryItem(id)
+							local item = Fn.findInventoryItem(id)
 							if item then item.State = "Owned" end
 						end
 					end
 				end
-				showToast("TRADE COMPLETE", SocialTheme.Purple)
-				resetTradeState()
-				registerOwnedInventory()
-				refreshInventory()
-				refreshFit()
-				if phoneWindow.Visible then refreshPhone() end
+				Fn.showToast("TRADE COMPLETE", SocialTheme.Purple)
+				Fn.resetTradeState()
+				Fn.registerOwnedInventory()
+				Fn.refreshInventory()
+				Fn.refreshFit()
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "Cancelled" then
-				showToast("TRADE CANCELLED", Theme.Muted)
-				resetTradeState()
-				if phoneWindow.Visible then refreshPhone() end
+				Fn.showToast("TRADE CANCELLED", Theme.Muted)
+				Fn.resetTradeState()
+				if phoneWindow.Visible then Fn.refreshPhone() end
 			elseif action == "Error" then
-				showToast(tostring(data), Theme.Danger)
+				Fn.showToast(tostring(data), Theme.Danger)
 			elseif action == "BioUpdated" then
 				-- Reserved for future server-side live profile updates.
 			end
@@ -3919,12 +4057,20 @@ task.spawn(function()
 	if not remote:IsA("RemoteEvent") or not rackRemote:IsA("RemoteEvent") or not luckRemote:IsA("RemoteEvent") then
 		return
 	end
-	refreshInventory()
+	Fn.refreshInventory()
 
 	-- Okragly wieszak: serwer najpierw proponuje wylosowany item za $100.
 	-- Poniewaz obecny prototyp przechowuje coins lokalnie, platnosc jest
 	-- odejmowana tutaj, a dopiero potem serwer zatwierdza wygrana.
 	rackRemote.OnClientEvent:Connect(function(payload)
+		if type(payload) == "table" and payload.Type == "Depleted" then
+			rollState.Auto = false
+			rollState.Source = nil
+			local secs = tonumber(payload.RefillIn) or 600
+			local mins = math.max(1, math.floor(secs / 60))
+			Fn.showToast("OUT OF STOCK - REFILL IN " .. mins .. " MIN", Theme.Danger)
+			return
+		end
 		if type(payload) ~= "table" or payload.Type ~= "Offer" then
 			return
 		end
@@ -3936,7 +4082,7 @@ task.spawn(function()
 		if coins < price then
 			rollState.Auto = false
 			rollState.Source = nil
-			showToast("NOT ENOUGH CASH - NEED $" .. formatCoins(price), Theme.Danger)
+			Fn.showToast("NOT ENOUGH CASH - NEED $" .. Fn.formatCoins(price), Theme.Danger)
 			rackRemote:FireServer("Cancel")
 			return
 		end
@@ -3944,8 +4090,8 @@ task.spawn(function()
 		rollState.Source = tostring(payload.Source or "")
 		rollState.Price = price
 		coins -= price
-		cashLabel.Text = "$" .. formatCoins(coins)
-		showToast(string.upper(tostring(payload.Source or "CLOTHING ROLL")) .. ": -$" .. formatCoins(price), Theme.Muted)
+		cashLabel.Text = "$" .. Fn.formatCoins(coins)
+		Fn.showToast(string.upper(tostring(payload.Source or "CLOTHING ROLL")) .. ": -$" .. Fn.formatCoins(price), Theme.Muted)
 
 		-- Serwer posiada juz konkretny wylosowany item, wiec nie mozna
 		-- zmienic wyniku po stronie klienta.
@@ -3966,27 +4112,27 @@ task.spawn(function()
 		rollState.Price = tonumber(payload.Price) or 0
 		rollState.Active = true
 		task.spawn(function()
-			local ok, errorMessage = pcall(animateClothingRoll, payload.Item)
+			local ok, errorMessage = pcall(Fn.animateClothingRoll, payload.Item)
 			rollState.Active = false
 			if not ok then
 				warn("[ThriftUI] Clothing roll error:", errorMessage)
-				showToast("CLOTHING ROLL FAILED", Theme.Danger)
+				Fn.showToast("CLOTHING ROLL FAILED", Theme.Danger)
 			end
 		end)
-		registerOwnedInventory()
+		Fn.registerOwnedInventory()
 
 		if payload.UnlockMessage then
 			task.delay(3.8, function()
-				showToast(string.upper(tostring(payload.UnlockMessage)), Theme.Lime)
+				Fn.showToast(string.upper(tostring(payload.UnlockMessage)), Theme.Lime)
 			end)
 		end
 	end)
 end)
 
-refreshInventory()
-refreshFit()
+Fn.refreshInventory()
+Fn.refreshFit()
 currentPhoneApp = "HOME"
-refreshPhone()
+Fn.refreshPhone()
 -- Initial state: the phone UI is prepared but the phone itself is closed.
 -- Do not leave the world dimmed or require a click to clear the backdrop.
 phoneWindow.Visible = false
@@ -3997,4 +4143,4 @@ if cameraOverlay then cameraOverlay.Visible = false end
 if cameraCaptureMask then cameraCaptureMask.Visible = false end
 if cameraFrameGuide then cameraFrameGuide.Visible = false end
 activeWindow = nil
-showToast("WELCOME TO THRIFT//RUN", Theme.Lime)
+Fn.showToast("WELCOME TO THRIFT//RUN", Theme.Lime)

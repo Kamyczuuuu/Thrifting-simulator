@@ -124,6 +124,13 @@ local mannequinLoot = {
 	Mythic = mythic,
 	Secret = secret,
 }
+local shelfLoot = {
+	Common = common,
+	Uncommon = uncommon,
+	Rare = rare,
+	Epic = epic,
+	Grail = grail,
+}
 
 local function choose(list)
 	return list[random:NextInteger(1, #list)]
@@ -141,6 +148,15 @@ local function chooseBasketLoot(player)
 	local roll = random:NextNumber(0, 100) + (playerLuck[player] or 0)
 	if roll <= 75 then return table.clone(choose(basketLoot.Common)) end
 	return table.clone(choose(basketLoot.Uncommon))
+end
+
+local function chooseShelfLoot(player)
+	local roll = random:NextNumber(0, 100) + (playerLuck[player] or 0)
+	if roll <= 40 then return table.clone(choose(shelfLoot.Common)) end
+	if roll <= 70 then return table.clone(choose(shelfLoot.Uncommon)) end
+	if roll <= 88 then return table.clone(choose(shelfLoot.Rare)) end
+	if roll <= 97 then return table.clone(choose(shelfLoot.Epic)) end
+	return table.clone(choose(shelfLoot.Grail))
 end
 
 local function chooseMannequinLoot(player)
@@ -274,26 +290,82 @@ local function addPrompt(target, actionText, objectText, callback)
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
 	prompt.Triggered:Connect(callback)
+	return prompt
 end
 
 local connected = {}
 local paidModelRolls = {}
 local freeModelRolls = {}
 
+-- Roll stock system: every rollable model has a limited number of rolls
+-- before it runs out and needs time to refill. State is stored in model
+-- attributes so it replicates to every client automatically.
+local STOCK_MAX = 100
+local REFILL_SECONDS = 600
+local modelStock = {}
+local modelPrompts = {}
+local modelSource = {}
+local sourceModels = {}
+local playerLastModel = {}
+
+local function initStock(model)
+	local state = modelStock[model]
+	if not state then
+		state = { Stock = STOCK_MAX, RefillAt = 0 }
+		modelStock[model] = state
+		model:SetAttribute("RollStock", STOCK_MAX)
+		model:SetAttribute("RollStockMax", STOCK_MAX)
+		model:SetAttribute("RollRefillAt", 0)
+	end
+	return state
+end
+
+local function applyStockVisual(model)
+	local state = modelStock[model]
+	if not state then return end
+	model:SetAttribute("RollStock", state.Stock)
+	model:SetAttribute("RollRefillAt", state.RefillAt)
+	local prompt = modelPrompts[model]
+	if prompt then
+		prompt.Enabled = state.Stock > 0
+	end
+end
+
+local function consumeStock(player, model)
+	local state = initStock(model)
+	if state.Stock <= 0 then
+		local refillIn = math.max(1, state.RefillAt - os.time())
+		rackRoll:FireClient(player, {
+			Type = "Depleted",
+			Source = modelSource[model],
+			RefillIn = refillIn,
+		})
+		return false
+	end
+	state.Stock -= 1
+	if state.Stock <= 0 then
+		state.RefillAt = os.time() + REFILL_SECONDS
+	end
+	applyStockVisual(model)
+	return true
+end
+
 local binNames = { "bin", "Bin", "ClothingBIn", "ClothingBin", "CubeClothingDonationBin" }
 local basketNames = { "koszyk", "Koszyk", "basket", "Basket", "ClothingBasket" }
 local rackNames = { "rack", "Rack", "ClothingRack", "CubeRoundClothingRack", "RoundThriftRack" }
 local mannequinNames = { "manekin", "Manekin", "mannequin", "Mannequin", "ClothingMannequin" }
+local shelfNames = { "polkanaubrania", "polka", "półka", "shelf", "Shelf", "ClothingShelf", "ClothingShelfUnit" }
 
 local function makeOfferId(found, player, now)
 	found.Id = string.format("%s_%d_%d", found.Id, player.UserId, math.floor(now * 1000))
 	return found
 end
 
-local function sendPaidOffer(player, source, price, chooseLoot, ignoreCooldown)
+local function sendPaidOffer(player, source, price, chooseLoot, ignoreCooldown, model)
 	local now = os.clock()
 	if not ignoreCooldown and lastUse[player] and now - lastUse[player] < 1 then return end
 	if pendingOffers[player] then return end
+	if model and not consumeStock(player, model) then return end
 	lastUse[player] = now
 	local found = makeOfferId(table.clone(chooseLoot(player)), player, now)
 	pendingOffers[player] = { Item = found, Price = price, Source = source }
@@ -311,10 +383,16 @@ local function connectBin(bin)
 	freeModelRolls["Clothing Donation Bin"] = function()
 		return choose(binLoot)
 	end
-	addPrompt(bin, "Search (Free)", "Clothing Donation Bin", function(player)
+	modelSource[bin] = "Clothing Donation Bin"
+	sourceModels["Clothing Donation Bin"] = sourceModels["Clothing Donation Bin"] or {}
+	table.insert(sourceModels["Clothing Donation Bin"], bin)
+	initStock(bin)
+	modelPrompts[bin] = addPrompt(bin, "Search (Free)", "Clothing Donation Bin", function(player)
 		local now = os.clock()
 		if lastUse[player] and now - lastUse[player] < 1 then return end
+		if not consumeStock(player, bin) then return end
 		lastUse[player] = now
+		playerLastModel[player] = bin
 		local found = makeOfferId(table.clone(choose(binLoot)), player, now)
 		clothingFound:FireClient(player, { Type = "Found", Item = found, Price = 0, Source = "Clothing Donation Bin" })
 	end)
@@ -325,8 +403,13 @@ local function connectPaidModel(target, actionText, objectText, price, chooseLoo
 	if connected[target] then return end
 	connected[target] = true
 	paidModelRolls[objectText] = { Price = price, ChooseLoot = chooseLoot }
-	addPrompt(target, actionText, objectText, function(player)
-		sendPaidOffer(player, objectText, price, chooseLoot)
+	modelSource[target] = objectText
+	sourceModels[objectText] = sourceModels[objectText] or {}
+	table.insert(sourceModels[objectText], target)
+	initStock(target)
+	modelPrompts[target] = addPrompt(target, actionText, objectText, function(player)
+		playerLastModel[player] = target
+		sendPaidOffer(player, objectText, price, chooseLoot, false, target)
 	end)
 	print("[ClothingModels] Paid model connected:", target:GetFullName(), price)
 end
@@ -341,6 +424,10 @@ end
 
 local function connectMannequin(mannequin)
 	connectPaidModel(mannequin, "Roll clothing ($10,000)", "Mannequin", 10000, chooseMannequinLoot)
+end
+
+local function connectShelf(shelf)
+	connectPaidModel(shelf, "Roll clothing ($5,000)", "Clothing Shelf", 5000, chooseShelfLoot)
 end
 
 local function tryConnect(object)
@@ -363,6 +450,12 @@ local function tryConnect(object)
 			return
 		end
 	end
+	for _, name in ipairs(shelfNames) do
+		if objectName == string.lower(name) then
+			connectShelf(object)
+			return
+		end
+	end
 	for _, name in ipairs(mannequinNames) do
 		if objectName == string.lower(name) then
 			connectMannequin(object)
@@ -381,15 +474,22 @@ end)
 
 rackRoll.OnServerEvent:Connect(function(player, action, source)
 	if action == "AutoRoll" then
-		local roll = paidModelRolls[tostring(source)]
+		local sourceName = tostring(source)
+		local model = playerLastModel[player]
+		if not (model and model.Parent and modelSource[model] == sourceName) then
+			local list = sourceModels[sourceName]
+			model = list and list[1]
+		end
+		local roll = paidModelRolls[sourceName]
 		if roll then
-			sendPaidOffer(player, tostring(source), roll.Price, roll.ChooseLoot, true)
+			sendPaidOffer(player, sourceName, roll.Price, roll.ChooseLoot, true, model)
 			return
 		end
-		local chooseFreeLoot = freeModelRolls[tostring(source)]
+		local chooseFreeLoot = freeModelRolls[sourceName]
 		if chooseFreeLoot then
 			local now = os.clock()
 			if lastUse[player] and now - lastUse[player] < 1 then return end
+			if model and not consumeStock(player, model) then return end
 			lastUse[player] = now
 			local found = makeOfferId(table.clone(chooseFreeLoot(player)), player, now)
 			clothingFound:FireClient(player, {
@@ -414,8 +514,24 @@ rackRoll.OnServerEvent:Connect(function(player, action, source)
 	})
 end)
 
+-- Refill loop: depleted models slowly restock back to full after the cooldown.
+task.spawn(function()
+	while true do
+		task.wait(1)
+		local now = os.time()
+		for model, state in pairs(modelStock) do
+			if state.Stock <= 0 and state.RefillAt > 0 and now >= state.RefillAt then
+				state.Stock = STOCK_MAX
+				state.RefillAt = 0
+				applyStockVisual(model)
+			end
+		end
+	end
+end)
+
 Players.PlayerRemoving:Connect(function(player)
 	pendingOffers[player] = nil
 	lastUse[player] = nil
 	playerLuck[player] = nil
+	playerLastModel[player] = nil
 end)
